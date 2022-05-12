@@ -1,0 +1,35 @@
+modLoader = "javafml"
+loaderVersion = "[38,)"
+#issueTrackerURL = ""
+license = "Insert License Here"
+
+[[mods]]
+modId = "ftbbackups2"
+version = "${version}"
+displayName = "FTB Backups 2"
+authors = "CreeperHost"
+description = '''
+Backup all the things!
+'''
+#logoFile = ""
+
+[[dependencies.ftbbackups2]]
+modId = "forge"
+mandatory = true
+versionRange = "[38,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.ftbbackups2]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.18,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.ftbbackups2]]
+modId = "architectury"
+mandatory = true
+versionRange = "[3.3.7,)"
+ordering = "AFTER"
+side = "BOTH"
