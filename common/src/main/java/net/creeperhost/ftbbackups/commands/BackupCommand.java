@@ -17,6 +17,8 @@ public class BackupCommand {
 
     private static int execute(CommandContext<CommandSourceStack> cs) {
         if (Config.cached().manual_backups_time == 0) {
+            cs.getSource().getServer().saveAllChunks(true, true, true);
+            BackupHandler.isDirty = true;
             BackupHandler.createBackup(cs.getSource().getServer());
         } else {
             long configTimeFromMinutes = ((long) Config.cached().manual_backups_time) * 60000000000L;
