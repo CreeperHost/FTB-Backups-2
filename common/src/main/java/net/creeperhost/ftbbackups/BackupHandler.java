@@ -97,6 +97,7 @@ public class BackupHandler {
                     }
                     //The backup did not fail
                     backupFailed.set(false);
+                    BackupHandler.isDirty = false;
                 } catch (Exception e) {
                     //Set backup running state to false
                     backupRunning.set(false);
