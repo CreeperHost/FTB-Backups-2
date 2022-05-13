@@ -52,7 +52,9 @@ public class BackupHandler {
     }
 
     public static void createBackup(MinecraftServer minecraftServer) {
-        if(Config.cached().only_if_players_been_online && !BackupHandler.isDirty) return;
+        if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty) {
+            FTBBackups.LOGGER.info("Skipping backup, no players have been online since last backup.");
+        }
         worldFolder = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
         FTBBackups.LOGGER.info("Found world folder at " + worldFolder);
         Calendar calendar = Calendar.getInstance();
