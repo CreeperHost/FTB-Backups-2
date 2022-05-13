@@ -10,7 +10,10 @@ public class ConfigData {
     public int command_permission_level = 3;
 
     @Comment("Only send backup status to server ops")
-    public boolean notify_op_only = false;
+    public boolean notify_op_only = true;
+
+    @Comment("Don't send backup status at all")
+    public boolean do_not_notify = false;
 
     @Comment("Maximum number of backups to keep")
     public int max_backups = 5;

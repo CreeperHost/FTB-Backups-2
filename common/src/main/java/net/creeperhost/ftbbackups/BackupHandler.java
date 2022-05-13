@@ -322,6 +322,7 @@ public class BackupHandler {
     }
 
     public static void alertPlayers(MinecraftServer minecraftServer, Component message) {
+        if (Config.cached().do_not_notify) return;
         if (Config.cached().notify_op_only && minecraftServer instanceof DedicatedServer) {
             for (ServerPlayer player : minecraftServer.getPlayerList().getPlayers()) {
                 if (player.hasPermissions(4)) {
