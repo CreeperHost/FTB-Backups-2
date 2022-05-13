@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -79,8 +80,21 @@ public class BackupHandler {
                 try {
                     //Warn all online players that the server is going to start creating a backup
                     alertPlayers(minecraftServer, new TranslatableComponent(FTBBackups.MOD_ID + ".backup.starting"));
+                    //Create the full path to this backup
+                    Path backupPath = backupFolderPath.resolve(backupName);
                     //Create a zip of the world folder and store it in the /backup folder
-                    FileUtils.pack(worldFolder, backupFolderPath.resolve(backupName));
+                    FileUtils.pack(worldFolder, backupPath);
+                    for (String p : Config.cached().additional_directories) {
+                        try {
+                            Path path = worldFolder.getParent().resolve(p);
+                            if (Files.exists(path) && Files.isDirectory(path)) {
+                                FileUtils.pack(path, backupPath);
+                            }
+                        } catch(Exception err) {
+                            FTBBackups.LOGGER.error("Failed to add additional directory '"+p+"' to the backup.");
+                            err.printStackTrace();
+                        }
+                    }
                     //The backup did not fail
                     backupFailed.set(false);
                 } catch (Exception e) {
@@ -266,6 +280,14 @@ public class BackupHandler {
         }
         long free = backupFolderPath.toFile().getFreeSpace();
         long currentWorldSize = FileUtils.getFolderSize(worldFolder.toFile());
+        for (String p : Config.cached().additional_directories) {
+            try {
+                Path path = worldFolder.getParent().resolve(p);
+                if (Files.exists(path) && Files.isDirectory(path)) {
+                    currentWorldSize += FileUtils.getFolderSize(path.toFile());
+                }
+            } catch(Exception ignored) {}
+        }
 
         if (getLatestBackup() == null) {
             FTBBackups.LOGGER.info("Current world size: " + FileUtils.getSizeString(currentWorldSize) + " Current free space: " + FileUtils.getSizeString(free));
