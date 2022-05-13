@@ -23,7 +23,7 @@ public class FTBBackups {
     public static final String MOD_ID = "ftbbackups2";
     public static Logger LOGGER = LogManager.getLogger();
     public static Path configFile = Platform.getConfigFolder().resolve(MOD_ID + ".json");
-    public static ScheduledExecutorService configWatcherExecutorService = Executors.newScheduledThreadPool(1);
+    public static ScheduledExecutorService configWatcherExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups Config Watcher %d").setDaemon(true).build());
     public static ScheduledExecutorService backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1);
 
     public static MinecraftServer minecraftServer;
