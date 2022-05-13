@@ -7,11 +7,14 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 public class FileUtils {
+
     public static final long KB = 1024L;
     public static final long MB = KB * 1024L;
     public static final long GB = MB * 1024L;
@@ -22,26 +25,39 @@ public class FileUtils {
     public static final double GB_D = MB_D * 1024D;
     public static final double TB_D = GB_D * 1024D;
 
-    public static void pack(Path sourceDirPath, Path zipFilePath) throws IOException {
+    public static void pack(Path zipFilePath, Path serverRoot, Iterable<Path> sourcePaths) throws IOException {
         Path p = Files.createFile(zipFilePath);
-        Path pp = sourceDirPath;
-        try (ZipOutputStream zs = new ZipOutputStream(Files.newOutputStream(p));
-             Stream<Path> paths = Files.walk(pp)) {
-            paths.filter(path -> !Files.isDirectory(path))
-                    .forEach(path -> {
-                        ZipEntry zipEntry = new ZipEntry(pp.relativize(path).toString());
-                        try {
-                            File f = path.toFile();
-                            if (!f.getName().equals("session.lock") && f.canRead()) {
-                                zs.putNextEntry(zipEntry);
-                                Files.copy(path, zs);
-                            }
-                            zs.closeEntry();
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    });
+        Map<String, Path> seenFiles = new HashMap<>();
+        try (ZipOutputStream zs = new ZipOutputStream(Files.newOutputStream(p))) {
+            for (Path sourcePath : sourcePaths) {
+                try (Stream<Path> pathStream = Files.walk(sourcePath)) {
+                    for (Path path : (Iterable<Path>) pathStream::iterator) {
+                        if (Files.isDirectory(path)) continue;
+
+                        packIntoZip(zs, serverRoot, path);
+                    }
+                }
+            }
         }
+    }
+
+    private static void packIntoZip(ZipOutputStream zos, Path rootDir, Path file) throws IOException {
+        // Don't pack session.lock files
+        if (file.getFileName().toString().equals("session.lock")) return;
+        // Ensure files are readable
+        if (!Files.isReadable(file)) return;
+
+        ZipEntry zipEntry = new ZipEntry(rootDir.relativize(file).toString());
+        zos.putNextEntry(zipEntry);
+        Files.copy(file, zos);
+        zos.closeEntry();
+    }
+
+    public static boolean isChildOf(Path path, Path parent) {
+        if (path == null) return false;
+        if (path.equals(parent)) return true;
+
+        return isChildOf(path.getParent(), parent);
     }
 
     public static String getSha1(Path path) {

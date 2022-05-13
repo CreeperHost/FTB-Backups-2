@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -33,6 +34,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class BackupHandler {
+
+    private static Path serverRoot;
     private static Path backupFolderPath;
     private static Path worldFolder;
     private static final AtomicBoolean backupRunning = new AtomicBoolean(false);
@@ -44,7 +47,8 @@ public class BackupHandler {
     private static long lastAutoBackup = 0;
 
     public static void init(MinecraftServer minecraftServer) {
-        backupFolderPath = minecraftServer.getServerDirectory().toPath().resolve("backups");
+        serverRoot = minecraftServer.getServerDirectory().toPath().normalize().toAbsolutePath();
+        backupFolderPath = serverRoot.resolve("backups");
         createBackupFolder(backupFolderPath);
         loadJson();
         FTBBackups.LOGGER.info("Starting backup cleaning thread");
@@ -85,18 +89,43 @@ public class BackupHandler {
                     //Create the full path to this backup
                     Path backupPath = backupFolderPath.resolve(backupName);
                     //Create a zip of the world folder and store it in the /backup folder
-                    FileUtils.pack(worldFolder, backupPath);
+                    List<Path> backupPaths = new LinkedList<>();
+                    backupPaths.add(worldFolder);
                     for (String p : Config.cached().additional_directories) {
                         try {
-                            Path path = worldFolder.getParent().resolve(p);
-                            if (Files.exists(path) && Files.isDirectory(path)) {
-                                FileUtils.pack(path, backupPath);
+                            Path path = serverRoot.resolve(p);
+                            if (!FileUtils.isChildOf(path, serverRoot)) {
+                                FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is not a child of the server root directory.", p);
+                                continue;
                             }
-                        } catch(Exception err) {
-                            FTBBackups.LOGGER.error("Failed to add additional directory '"+p+"' to the backup.");
-                            err.printStackTrace();
+
+                            if (path.equals(worldFolder)) {
+                                FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is the world folder.", p);
+                                continue;
+                            }
+
+                            if (FileUtils.isChildOf(path, worldFolder)) {
+                                FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is a child of the world folder.", p);
+                                continue;
+                            }
+                            if (FileUtils.isChildOf(path, backupFolderPath)) {
+                                FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is a child of the backups folder.", p);
+                                continue;
+                            }
+
+                            if (!Files.isDirectory(path)) {
+                                FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is not a directory..", p);
+                                continue;
+                            }
+
+                            if (Files.exists(path)) {
+                                backupPaths.add(path);
+                            }
+                        } catch (Exception err) {
+                            FTBBackups.LOGGER.error("Failed to add additional directory '{}' to the backup.", p, err);
                         }
                     }
+                    FileUtils.pack(backupPath, serverRoot, backupPaths);
                     //The backup did not fail
                     backupFailed.set(false);
                     BackupHandler.isDirty = false;
@@ -115,8 +144,7 @@ public class BackupHandler {
             }).thenRun(() ->
             {
                 //If the backup failed then we don't need to do anything
-                if(backupFailed.get())
-                {
+                if (backupFailed.get()) {
                     //This reset should not be needed but making sure anyway
                     backupFailed.set(false);
                     return;
