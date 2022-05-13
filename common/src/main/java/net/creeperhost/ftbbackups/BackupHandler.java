@@ -36,6 +36,7 @@ public class BackupHandler {
     private static Path worldFolder;
     private static final AtomicBoolean backupRunning = new AtomicBoolean(false);
     private static final AtomicBoolean backupFailed = new AtomicBoolean(false);
+    public static boolean isDirty = false;
 
     public static AtomicReference<Backups> backups = new AtomicReference<>(new Backups());
     private static String failReason = "";
@@ -50,6 +51,7 @@ public class BackupHandler {
     }
 
     public static void createBackup(MinecraftServer minecraftServer) {
+        if(Config.cached().only_if_players_been_online && !BackupHandler.isDirty) return;
         worldFolder = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
         FTBBackups.LOGGER.info("Found world folder at " + worldFolder);
         Calendar calendar = Calendar.getInstance();

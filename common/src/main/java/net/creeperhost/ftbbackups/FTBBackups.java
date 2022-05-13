@@ -10,6 +10,8 @@ import net.creeperhost.ftbbackups.config.Config;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.quartz.*;
@@ -35,6 +37,15 @@ public class FTBBackups {
         CommandRegistrationEvent.EVENT.register(FTBBackups::onCommandRegisterEvent);
         LifecycleEvent.SERVER_STARTED.register(FTBBackups::serverStartedEvent);
         LifecycleEvent.SERVER_STOPPED.register(FTBBackups::serverStoppedEvent);
+        LifecycleEvent.SERVER_LEVEL_SAVE.register(FTBBackups::serverSaveEvent);
+    }
+
+    private static void serverSaveEvent(ServerLevel serverLevel) {
+        if(serverLevel == null || serverLevel.isClientSide) return;
+        ServerPlayer player = serverLevel.getRandomPlayer();
+        if(player != null ) {
+            BackupHandler.isDirty = true;
+        }
     }
 
     private static void serverStartedEvent(MinecraftServer minecraftServer) {

@@ -20,4 +20,7 @@ public class ConfigData {
 
     @Comment("Time between manual backups using the command")
     public int manual_backups_time = 0;
+
+    @Comment("Only run a backup if a player has been online since the last backup")
+    public boolean only_if_players_been_online = true;
 }
