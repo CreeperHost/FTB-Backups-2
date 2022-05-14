@@ -68,7 +68,7 @@ public class BackupHandler {
         Path backupLocation = backupFolderPath.resolve(backupName);
 
         if (canCreateBackup()) {
-            lastAutoBackup = System.nanoTime();
+            lastAutoBackup = System.currentTimeMillis();
 
             backupRunning.set(true);
             //Force save all player data before we start the backup
@@ -166,7 +166,7 @@ public class BackupHandler {
                 FTBBackups.LOGGER.info("Backup size " + FileUtils.getSizeString(backupLocation.toFile().length()) + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
                 //Create the backup data entry to store to the json file
 
-                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), startTime.get(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1);
+                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1);
                 addBackup(backup);
 
                 updateJson();
@@ -210,7 +210,7 @@ public class BackupHandler {
         Backup currentNewest = null;
         for (Backup backup : backups.get().getBackups()) {
             if (currentNewest == null) currentNewest = backup;
-            if (backup.getCreateTimeNano() > currentNewest.getCreateTimeNano()) {
+            if (backup.getCreateTime() > currentNewest.getCreateTime()) {
                 currentNewest = backup;
             }
         }
@@ -224,7 +224,7 @@ public class BackupHandler {
         Backup currentOldest = null;
         for (Backup backup : backups.get().getBackups()) {
             if (currentOldest == null) currentOldest = backup;
-            if (backup.getCreateTimeNano() < currentOldest.getCreateTimeNano()) {
+            if (backup.getCreateTime() < currentOldest.getCreateTime()) {
                 currentOldest = backup;
             }
         }
@@ -304,7 +304,7 @@ public class BackupHandler {
             return false;
         }
         if (lastAutoBackup != 0 && Config.cached().manual_backups_time != 0) {
-            if (System.nanoTime() < (lastAutoBackup + 60000000000L)) {
+            if (System.currentTimeMillis()< (lastAutoBackup + 60000L)) {
                 failReason = "";
                 return false;
             }
