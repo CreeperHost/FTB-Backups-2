@@ -6,8 +6,7 @@ dependencies {
     modApi "dev.architectury:architectury:${rootProject.architectury_version}"
     implementation "blue.endless:jankson:1.2.1"
     implementation 'org.quartz-scheduler:quartz:2.0.2'
-    //Thanks for using https://jar-download.com
-
+    implementation 'BlockMap-cli:BlockMap-cli:2.4.1'
 }
 
 architectury {
