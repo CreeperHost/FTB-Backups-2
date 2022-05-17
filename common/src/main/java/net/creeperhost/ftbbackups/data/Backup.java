@@ -7,14 +7,16 @@ public class Backup {
     private long size = 0;
     private float ratio = 0;
     private String sha1 = "";
+    private String preview = "";
 
-    public Backup(String worldName, long createTime, String backupLocation, long size, float ratio, String sha1) {
+    public Backup(String worldName, long createTime, String backupLocation, long size, float ratio, String sha1, String preview) {
         this.worldName = worldName;
         this.createTime = createTime;
         this.backupLocation = backupLocation;
         this.size = size;
         this.ratio = ratio;
         this.sha1 = sha1;
+        this.preview = preview;
     }
 
     public String getWorldName() {

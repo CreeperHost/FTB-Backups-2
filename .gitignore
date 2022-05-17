@@ -7,7 +7,6 @@ out/
 .gradle/
 output/
 bin/
-common/libs/
 
 .classpath
 .project

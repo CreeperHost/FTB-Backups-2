@@ -23,10 +23,18 @@ dependencies {
     common(project(path: ":common", configuration: "namedElements")) { transitive false }
     shadowCommon(project(path: ":common", configuration: "transformProductionForge")) { transitive = false }
 
+    forgeRuntimeLibrary("blue.endless:jankson:1.2.1") { transitive = false }
+    forgeRuntimeLibrary("org.quartz-scheduler:quartz:2.0.2") { transitive = false }
+//    forgeRuntimeLibrary("BlockMap-cli:BlockMap-cli:2.4.1") { transitive = false }
+
     implementation "blue.endless:jankson:1.2.1"
     shadowCommon "blue.endless:jankson:1.2.1"
+
     implementation 'org.quartz-scheduler:quartz:2.0.2'
     shadowCommon "org.quartz-scheduler:quartz:2.0.2"
+
+//    implementation "BlockMap-cli:BlockMap-cli:2.4.1"
+//    shadowCommon "BlockMap-cli:BlockMap-cli:2.4.1"
 }
 
 processResources {
@@ -41,6 +49,7 @@ shadowJar {
     exclude "fabric.mod.json"
 
     dependencies {
+        exclude(dependency("org.apache.logging::"))
         exclude(dependency("org.slf4j::"))
         exclude(dependency("javax.transaction::"))
     }

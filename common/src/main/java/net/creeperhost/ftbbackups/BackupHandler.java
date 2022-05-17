@@ -2,6 +2,10 @@ package net.creeperhost.ftbbackups;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import de.piegames.blockmap.MinecraftDimension;
+import de.piegames.blockmap.renderer.RegionRenderer;
+import de.piegames.blockmap.renderer.RenderSettings;
+import de.piegames.blockmap.world.RegionFolder;
 import net.creeperhost.ftbbackups.config.Config;
 import net.creeperhost.ftbbackups.data.Backup;
 import net.creeperhost.ftbbackups.data.Backups;
@@ -16,6 +20,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.storage.LevelResource;
 import org.apache.commons.io.IOUtils;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Vector2ic;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -23,10 +28,7 @@ import java.io.FileReader;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,6 +42,7 @@ public class BackupHandler {
     private static Path worldFolder;
     private static final AtomicBoolean backupRunning = new AtomicBoolean(false);
     private static final AtomicBoolean backupFailed = new AtomicBoolean(false);
+    private static AtomicReference<String> backupPreview = new AtomicReference<>("");
     public static boolean isDirty = false;
 
     public static AtomicReference<Backups> backups = new AtomicReference<>(new Backups());
@@ -55,9 +58,50 @@ public class BackupHandler {
         FTBBackups.backupCleanerWatcherExecutorService.scheduleAtFixedRate(BackupHandler::clean, 0, 30, TimeUnit.SECONDS);
     }
 
+    public static String createPreview(MinecraftServer minecraftServer) {
+//        try
+//        {
+//            MinecraftDimension dim = MinecraftDimension.OVERWORLD;
+//            RenderSettings settings = new RenderSettings();
+//            RegionRenderer renderer = new RegionRenderer(settings);
+//            Path worldPath = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
+//            Path dimPath = worldPath.resolve(dim.getRegionPath());
+//            Path previewPath = worldPath.resolve("backupPreview");
+//            RegionFolder.WorldRegionFolder w = RegionFolder.WorldRegionFolder.load(dimPath, renderer, false);
+//            RegionFolder.CachedRegionFolder r = RegionFolder.CachedRegionFolder.create(w, true, previewPath);
+//            Files.deleteIfExists(previewPath);
+//            Vector2ic lastPos = null;
+//            long lastTimestamp = 0;
+//            for (Vector2ic p : w.listRegions())
+//            {
+//                try
+//                {
+//                    long thisTimestamp = w.getTimestamp(p);
+//                    //TODO: Implement size checking too, later.
+//                    if (thisTimestamp > lastTimestamp)
+//                    {
+//                        lastPos = p;
+//                        lastTimestamp = thisTimestamp;
+//                    }
+//                } catch (Exception e)
+//                {
+//                    e.printStackTrace();
+//                }
+//            }
+//            if (lastPos != null) r.render(lastPos);
+//            byte[] image = Files.readAllBytes(previewPath.resolve(lastPos.toString() + ".png"));
+//            Files.deleteIfExists(previewPath);
+//            return "data:image/png;base64, " + Base64.getEncoder().encode(image);
+//        } catch (Exception ex) {
+//            ex.printStackTrace();
+//        }
+        return "";
+    }
+
     public static void createBackup(MinecraftServer minecraftServer) {
         if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty) {
             FTBBackups.LOGGER.info("Skipping backup, no players have been online since last backup.");
+            return;
         }
         worldFolder = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
         FTBBackups.LOGGER.info("Found world folder at " + worldFolder);
@@ -125,6 +169,7 @@ public class BackupHandler {
                             FTBBackups.LOGGER.error("Failed to add additional directory '{}' to the backup.", p, err);
                         }
                     }
+                    backupPreview.set(createPreview(minecraftServer));
                     FileUtils.pack(backupPath, serverRoot, backupPaths);
                     //The backup did not fail
                     backupFailed.set(false);
@@ -166,7 +211,7 @@ public class BackupHandler {
                 FTBBackups.LOGGER.info("Backup size " + FileUtils.getSizeString(backupLocation.toFile().length()) + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
                 //Create the backup data entry to store to the json file
 
-                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1);
+                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1, backupPreview.get());
                 addBackup(backup);
 
                 updateJson();
