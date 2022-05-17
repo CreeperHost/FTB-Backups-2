@@ -354,6 +354,13 @@ public class BackupHandler {
                 return false;
             }
         }
+
+        if(backupRunning.get())
+        {
+            FTBBackups.LOGGER.info("Unable to start new backup as backup is already running");
+            return false;
+        }
+
         long free = backupFolderPath.toFile().getFreeSpace();
         long currentWorldSize = FileUtils.getFolderSize(worldFolder.toFile());
         for (String p : Config.cached().additional_directories) {
