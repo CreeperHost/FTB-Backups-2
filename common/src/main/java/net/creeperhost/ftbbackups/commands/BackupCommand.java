@@ -21,11 +21,11 @@ public class BackupCommand {
             BackupHandler.isDirty = true;
             BackupHandler.createBackup(cs.getSource().getServer());
         } else {
-            long configTimeFromMinutes = ((long) Config.cached().manual_backups_time) * 60000000000L;
+            long configTimeFromMinutes = ((long) Config.cached().manual_backups_time) * 60_000;
             long lastBackupWithConfig = lastManualBackupTime + configTimeFromMinutes;
 
-            if (System.nanoTime() > lastBackupWithConfig) {
-                lastManualBackupTime = System.nanoTime();
+            if (System.currentTimeMillis() > lastBackupWithConfig) {
+                lastManualBackupTime = System.currentTimeMillis() ;
                 BackupHandler.createBackup(cs.getSource().getServer());
             } else {
                 cs.getSource().sendFailure(new TranslatableComponent("Unable to create backup, Last backup was taken less than " + Config.cached().max_backups + " Minutes ago"));
