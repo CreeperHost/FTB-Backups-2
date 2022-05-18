@@ -25,6 +25,7 @@ dependencies {
 
     forgeRuntimeLibrary("blue.endless:jankson:1.2.1") { transitive = false }
     forgeRuntimeLibrary("org.quartz-scheduler:quartz:2.0.2") { transitive = false }
+    forgeRuntimeLibrary rootProject.files('libs/BlockMap-cli-2.4.1.jar')
 
     implementation "blue.endless:jankson:1.2.1"
     shadowCommon "blue.endless:jankson:1.2.1"

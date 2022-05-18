@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import de.piegames.blockmap.MinecraftDimension;
 import de.piegames.blockmap.renderer.RegionRenderer;
 import de.piegames.blockmap.renderer.RenderSettings;
+import de.piegames.blockmap.repack.org.joml.Vector2ic;
 import de.piegames.blockmap.world.RegionFolder;
 import net.creeperhost.ftbbackups.config.Config;
 import net.creeperhost.ftbbackups.data.Backup;
@@ -58,43 +59,47 @@ public class BackupHandler {
     }
 
     public static String createPreview(MinecraftServer minecraftServer) {
-//        try
-//        {
-//            MinecraftDimension dim = MinecraftDimension.OVERWORLD;
-//            RenderSettings settings = new RenderSettings();
-//            RegionRenderer renderer = new RegionRenderer(settings);
-//            Path worldPath = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
-//            Path dimPath = worldPath.resolve(dim.getRegionPath());
-//            Path previewPath = worldPath.resolve("backupPreview");
-//            RegionFolder.WorldRegionFolder w = RegionFolder.WorldRegionFolder.load(dimPath, renderer, false);
-//            RegionFolder.CachedRegionFolder r = RegionFolder.CachedRegionFolder.create(w, true, previewPath);
-//            Files.deleteIfExists(previewPath);
-//            Vector2ic lastPos = null;
-//            long lastTimestamp = 0;
-//            for (Vector2ic p : w.listRegions())
-//            {
-//                try
-//                {
-//                    long thisTimestamp = w.getTimestamp(p);
-//                    //TODO: Implement size checking too, later.
-//                    if (thisTimestamp > lastTimestamp)
-//                    {
-//                        lastPos = p;
-//                        lastTimestamp = thisTimestamp;
-//                    }
-//                } catch (Exception e)
-//                {
-//                    e.printStackTrace();
-//                }
-//            }
-//            if (lastPos != null) r.render(lastPos);
-//            byte[] image = Files.readAllBytes(previewPath.resolve(lastPos.toString() + ".png"));
-//            Files.deleteIfExists(previewPath);
-//            return "data:image/png;base64, " + Base64.getEncoder().encode(image);
-//        } catch (Exception ex) {
-//            ex.printStackTrace();
-//        }
+        try
+        {
+            MinecraftDimension dim = MinecraftDimension.OVERWORLD;
+            RenderSettings settings = new RenderSettings();
+            RegionRenderer renderer = new RegionRenderer(settings);
+            Path worldPath = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
+            Path dimPath = worldPath.resolve(dim.getRegionPath());
+            Path previewPath = worldPath.resolve("backupPreview");
+            RegionFolder.WorldRegionFolder w = RegionFolder.WorldRegionFolder.load(dimPath, renderer, false);
+            RegionFolder.CachedRegionFolder r = RegionFolder.CachedRegionFolder.create(w, true, previewPath);
+            Files.deleteIfExists(previewPath);
+            Vector2ic lastPos = null;
+            long lastTimestamp = 0;
+            for (Vector2ic p : w.listRegions())
+            {
+                try
+                {
+                    long thisTimestamp = w.getTimestamp(p);
+                    //TODO: Implement size checking too, later.
+                    if (thisTimestamp > lastTimestamp)
+                    {
+                        lastPos = p;
+                        lastTimestamp = thisTimestamp;
+                    }
+                } catch (Exception e)
+                {
+                    e.printStackTrace();
+                }
+            }
+            if (lastPos != null) r.render(lastPos);
+            byte[] image = Files.readAllBytes(previewPath.resolve(lastPos.toString() + ".png"));
+            Files.deleteIfExists(previewPath);
+            return "data:image/png;base64, " + Base64.getEncoder().encode(image);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
         return "";
+    }
+
+    public static boolean isRunning() {
+        return backupRunning.get();
     }
 
     public static void createBackup(MinecraftServer minecraftServer) {

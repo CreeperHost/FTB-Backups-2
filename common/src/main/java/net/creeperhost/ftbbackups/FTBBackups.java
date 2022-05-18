@@ -40,15 +40,21 @@ public class FTBBackups {
         LifecycleEvent.SERVER_STARTED.register(FTBBackups::serverStartedEvent);
         LifecycleEvent.SERVER_STOPPED.register(FTBBackups::serverStoppedEvent);
         LifecycleEvent.SERVER_LEVEL_SAVE.register(FTBBackups::serverSaveEvent);
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            while(BackupHandler.backupRunning.get())
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            int shutdownCount = 0;
+            while(BackupHandler.isRunning())
             {
-                //Let's hold up shutting down if we're mid-backup I guess...
+                if(shutdownCount > 120) break;
+                //Let's hold up shutting down if we're mid-backup I guess... But limit it to waiting 2 minutes.
+                try {
+                    Thread.sleep(1000);
+                    shutdownCount++;
+                } catch (InterruptedException ignored) {}
             }
             FTBBackups.isShutdown = true;
             FTBBackups.configWatcherExecutorService.shutdownNow();
             FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
-        });
+        }));
     }
 
     private static void serverSaveEvent(ServerLevel serverLevel) {
