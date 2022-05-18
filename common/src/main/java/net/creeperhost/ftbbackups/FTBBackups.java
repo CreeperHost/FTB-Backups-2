@@ -32,12 +32,23 @@ public class FTBBackups {
     public static MinecraftServer minecraftServer;
     public static Scheduler scheduler;
 
+    public static boolean isShutdown = false;
+
     public static void init() {
         Config.init(configFile.toFile());
         CommandRegistrationEvent.EVENT.register(FTBBackups::onCommandRegisterEvent);
         LifecycleEvent.SERVER_STARTED.register(FTBBackups::serverStartedEvent);
         LifecycleEvent.SERVER_STOPPED.register(FTBBackups::serverStoppedEvent);
         LifecycleEvent.SERVER_LEVEL_SAVE.register(FTBBackups::serverSaveEvent);
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            while(BackupHandler.backupRunning.get())
+            {
+                //Let's hold up shutting down if we're mid-backup I guess...
+            }
+            FTBBackups.isShutdown = true;
+            FTBBackups.configWatcherExecutorService.shutdownNow();
+            FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
+        });
     }
 
     private static void serverSaveEvent(ServerLevel serverLevel) {

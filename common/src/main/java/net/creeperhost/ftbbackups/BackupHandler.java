@@ -99,6 +99,7 @@ public class BackupHandler {
     }
 
     public static void createBackup(MinecraftServer minecraftServer) {
+        if(FTBBackups.isShutdown) return;
         if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty) {
             FTBBackups.LOGGER.info("Skipping backup, no players have been online since last backup.");
             return;
@@ -279,6 +280,7 @@ public class BackupHandler {
     public static void clean() {
         //Don't run clean if there is a backup already running
         try {
+            if(FTBBackups.isShutdown) return;
             if (backupRunning.get()) return;
             if (backups.get().size() > Config.cached().max_backups) {
                 FTBBackups.LOGGER.info("More backups than " + Config.cached().max_backups + " found, Removing oldest backup");

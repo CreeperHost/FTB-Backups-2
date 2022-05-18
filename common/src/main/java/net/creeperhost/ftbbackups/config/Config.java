@@ -88,6 +88,7 @@ public class Config {
                         }
                         WatchKey checker = watcher.get().take();
                         for (WatchEvent<?> event : checker.pollEvents()) {
+                            if(FTBBackups.isShutdown) return;
                             Path changed = (Path) event.context();
                             if (changed.endsWith(lastFile.getName()) && isLoaded()) {
                                 if (reload())
