@@ -29,6 +29,7 @@ dependencies {
 
     implementation 'org.quartz-scheduler:quartz:2.0.2'
     shadowCommon "org.quartz-scheduler:quartz:2.0.2"
+    shadowCommon rootProject.files('libs/BlockMap-cli-2.4.1.jar')
 }
 
 processResources {

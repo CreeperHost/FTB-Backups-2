@@ -33,9 +33,6 @@ allprojects {
     group = rootProject.maven_group
 
     repositories {
-        flatDir {
-            dirs '/libs'
-        }
         // Add repositories to retrieve artifacts from in here.
         // You should only use this when depending on other mods because
         // Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
