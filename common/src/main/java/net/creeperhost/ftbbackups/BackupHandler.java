@@ -6,6 +6,7 @@ import de.piegames.blockmap.MinecraftDimension;
 import de.piegames.blockmap.renderer.RegionRenderer;
 import de.piegames.blockmap.renderer.RenderSettings;
 import de.piegames.blockmap.repack.org.joml.Vector2ic;
+import de.piegames.blockmap.world.Region;
 import de.piegames.blockmap.world.RegionFolder;
 import net.creeperhost.ftbbackups.config.Config;
 import net.creeperhost.ftbbackups.data.Backup;
@@ -22,9 +23,8 @@ import net.minecraft.world.level.storage.LevelResource;
 import org.apache.commons.io.IOUtils;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FileReader;
+import javax.imageio.ImageIO;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -68,8 +68,17 @@ public class BackupHandler {
             Path dimPath = worldPath.resolve(dim.getRegionPath());
             Path previewPath = worldPath.resolve("backupPreview");
             RegionFolder.WorldRegionFolder w = RegionFolder.WorldRegionFolder.load(dimPath, renderer, false);
-            RegionFolder.CachedRegionFolder r = RegionFolder.CachedRegionFolder.create(w, true, previewPath);
-            Files.deleteIfExists(previewPath);
+            RegionFolder.CachedRegionFolder r = RegionFolder.CachedRegionFolder.create(w, false, previewPath);
+            try {
+                Files.walk(previewPath).forEach((f) -> {
+                    try {
+                        Files.deleteIfExists(f);
+                    } catch (IOException ignored) {
+                    }
+                });
+                Files.deleteIfExists(previewPath);
+                Files.createDirectories(previewPath);
+            } catch (Exception ignored) {}
             Vector2ic lastPos = null;
             long lastTimestamp = 0;
             for (Vector2ic p : w.listRegions())
@@ -88,10 +97,22 @@ public class BackupHandler {
                     e.printStackTrace();
                 }
             }
-            if (lastPos != null) r.render(lastPos);
-            byte[] image = Files.readAllBytes(previewPath.resolve(lastPos.toString() + ".png"));
-            Files.deleteIfExists(previewPath);
-            return "data:image/png;base64, " + Base64.getEncoder().encode(image);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            if (lastPos != null) {
+                Region render = r.render(lastPos);
+                ImageIO.write(render.getImage(), "png", baos);
+            }
+            byte[] image = baos.toByteArray();
+            try {
+                Files.walk(previewPath).forEach((f) -> {
+                    try {
+                        Files.deleteIfExists(f);
+                    } catch (IOException ignored) {
+                    }
+                });
+                Files.deleteIfExists(previewPath);
+            } catch(Exception ignored) {}
+            return "data:image/png;base64, " + Base64.getEncoder().encodeToString(image);
         } catch (Exception ex) {
             ex.printStackTrace();
         }
