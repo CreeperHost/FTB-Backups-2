@@ -29,8 +29,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -48,6 +47,7 @@ public class BackupHandler {
     public static AtomicReference<Backups> backups = new AtomicReference<>(new Backups());
     private static String failReason = "";
     private static long lastAutoBackup = 0;
+    public static ExecutorService executor = Executors.newSingleThreadExecutor();
 
     public static void init(MinecraftServer minecraftServer) {
         serverRoot = minecraftServer.getServerDirectory().toPath().normalize().toAbsolutePath();
@@ -212,7 +212,7 @@ public class BackupHandler {
                     //Print the stacktrace
                     e.printStackTrace();
                 }
-            }).thenRun(() ->
+            }, executor).thenRun(() ->
             {
                 //If the backup failed then we don't need to do anything
                 if (backupFailed.get()) {
