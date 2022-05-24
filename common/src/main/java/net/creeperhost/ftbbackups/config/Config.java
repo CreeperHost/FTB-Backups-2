@@ -74,11 +74,12 @@ public class Config {
         return elem.toJson(true, true);
     }
 
+    public static AtomicReference<WatchService> watcher = new AtomicReference<>();
+
     public static void init(File file) {
         if (lastFile == null) lastFile = file;
         try {
             try {
-                AtomicReference<WatchService> watcher = new AtomicReference<>();
                 Runnable configWatcher = () ->
                 {
                     try {

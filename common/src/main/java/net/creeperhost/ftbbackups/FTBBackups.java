@@ -17,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Properties;
 import java.util.concurrent.Executors;
@@ -40,21 +41,7 @@ public class FTBBackups {
         LifecycleEvent.SERVER_STARTED.register(FTBBackups::serverStartedEvent);
         LifecycleEvent.SERVER_STOPPED.register(FTBBackups::serverStoppedEvent);
         LifecycleEvent.SERVER_LEVEL_SAVE.register(FTBBackups::serverSaveEvent);
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            int shutdownCount = 0;
-            while(BackupHandler.isRunning())
-            {
-                if(shutdownCount > 120) break;
-                //Let's hold up shutting down if we're mid-backup I guess... But limit it to waiting 2 minutes.
-                try {
-                    Thread.sleep(1000);
-                    shutdownCount++;
-                } catch (InterruptedException ignored) {}
-            }
-            FTBBackups.isShutdown = true;
-            FTBBackups.configWatcherExecutorService.shutdownNow();
-            FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
-        }));
+        Runtime.getRuntime().addShutdownHook(new Thread(FTBBackups::killOutThreads));
     }
 
     private static void serverSaveEvent(ServerLevel serverLevel) {
@@ -95,12 +82,33 @@ public class FTBBackups {
     }
 
     private static void serverStoppedEvent(MinecraftServer minecraftServer) {
-        if (scheduler != null) {
-            try {
-                scheduler.shutdown();
-            } catch (SchedulerException e) {
-                e.printStackTrace();
+        killOutThreads();
+    }
+
+    public static void killOutThreads()
+    {
+        try
+        {
+            int shutdownCount = 0;
+            FTBBackups.isShutdown = true;
+
+            while(BackupHandler.isRunning())
+            {
+                if(shutdownCount > 120) break;
+                //Let's hold up shutting down if we're mid-backup I guess... But limit it to waiting 2 minutes.
+                try {
+                    Thread.sleep(1000);
+                    shutdownCount++;
+                } catch (InterruptedException ignored) {}
             }
+
+            scheduler.shutdown();
+            Config.watcher.get().close();
+            FTBBackups.configWatcherExecutorService.shutdownNow();
+            FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
+        } catch (Exception e)
+        {
+            e.printStackTrace();
         }
     }
 
