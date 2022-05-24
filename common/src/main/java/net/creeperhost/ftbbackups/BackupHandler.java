@@ -241,7 +241,7 @@ public class BackupHandler {
                 addBackup(backup);
 
                 updateJson();
-                FTBBackups.LOGGER.info("New backup created at " + backupLocation + " size: " + FileUtils.getSizeString(backupLocation) + " Took: " + format(elapsedTime) + " Seconds" + " Sha1: " + sha1);
+                FTBBackups.LOGGER.info("New backup created at " + backupLocation + " size: " + FileUtils.getSizeString(backupLocation) + " Took: " + format(elapsedTime) + " Sha1: " + sha1);
             });
         } else {
             //Create a new message for the failReason
