@@ -1,5 +1,6 @@
 package net.creeperhost.ftbbackups.commands;
 
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.creeperhost.ftbbackups.BackupHandler;
@@ -8,30 +9,42 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.TranslatableComponent;
 
+import java.util.Locale;
+
 public class BackupCommand {
     public static long lastManualBackupTime = 0;
 
     public static LiteralArgumentBuilder<CommandSourceStack> register() {
-        return Commands.literal("backup").requires(commandSourceStack -> commandSourceStack.hasPermission(Config.cached().command_permission_level)).executes(BackupCommand::execute);
+        return Commands.literal("backup")
+                .requires(cs -> cs.hasPermission(Config.cached().command_permission_level))
+                .then(
+                        Commands.argument("command", StringArgumentType.string())
+                                .executes(cs -> execute(cs, StringArgumentType.getString(cs, "command")))
+                );
     }
 
-    private static int execute(CommandContext<CommandSourceStack> cs) {
+    private static int execute(CommandContext<CommandSourceStack> cs, String command) {
+        boolean isProtected = false;
+        switch(command.toLowerCase(Locale.ROOT)) {
+            case "snapshot":
+                isProtected = true;
+                break;
+        }
         if (Config.cached().manual_backups_time == 0) {
             cs.getSource().getServer().saveAllChunks(true, true, true);
             BackupHandler.isDirty = true;
-            BackupHandler.createBackup(cs.getSource().getServer());
+            BackupHandler.createBackup(cs.getSource().getServer(), isProtected);
         } else {
             long configTimeFromMinutes = ((long) Config.cached().manual_backups_time) * 60_000;
             long lastBackupWithConfig = lastManualBackupTime + configTimeFromMinutes;
 
             if (System.currentTimeMillis() > lastBackupWithConfig) {
                 lastManualBackupTime = System.currentTimeMillis() ;
-                BackupHandler.createBackup(cs.getSource().getServer());
+                BackupHandler.createBackup(cs.getSource().getServer(), isProtected);
             } else {
                 cs.getSource().sendFailure(new TranslatableComponent("Unable to create backup, Last backup was taken less than " + Config.cached().max_backups + " Minutes ago"));
             }
         }
-
         return 0;
     }
 }

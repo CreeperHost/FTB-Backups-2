@@ -128,6 +128,9 @@ public class BackupHandler {
     }
 
     public static void createBackup(MinecraftServer minecraftServer) {
+        createBackup(minecraftServer, false);
+    }
+    public static void createBackup(MinecraftServer minecraftServer, boolean protect) {
         if(FTBBackups.isShutdown) return;
         if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty) {
             FTBBackups.LOGGER.info("Skipping backup, no players have been online since last backup.");
@@ -241,7 +244,7 @@ public class BackupHandler {
                 FTBBackups.LOGGER.info("Backup size " + FileUtils.getSizeString(backupLocation.toFile().length()) + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
                 //Create the backup data entry to store to the json file
 
-                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1, backupPreview.get());
+                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1, backupPreview.get(), protect);
                 addBackup(backup);
 
                 updateJson();
@@ -298,6 +301,7 @@ public class BackupHandler {
         if (backups.get().isEmpty()) return null;
         Backup currentOldest = null;
         for (Backup backup : backups.get().getBackups()) {
+            if(backup.isProtected()) continue;
             if (currentOldest == null) currentOldest = backup;
             if (backup.getCreateTime() < currentOldest.getCreateTime()) {
                 currentOldest = backup;
@@ -311,9 +315,9 @@ public class BackupHandler {
         try {
             if(FTBBackups.isShutdown) return;
             if (backupRunning.get()) return;
-            if (backups.get().size() > Config.cached().max_backups) {
+            if (backups.get().unprotectedSize() > Config.cached().max_backups) {
                 FTBBackups.LOGGER.info("More backups than " + Config.cached().max_backups + " found, Removing oldest backup");
-                int backupsNeedRemoving = (backups.get().size() - Config.cached().max_backups);
+                int backupsNeedRemoving = (backups.get().unprotectedSize() - Config.cached().max_backups);
                 if (backupsNeedRemoving > 0 && getOldestBackup() != null) {
                     for (int i = 0; i < backupsNeedRemoving; i++) {
                         File backupFile = new File(getOldestBackup().getBackupLocation());

@@ -18,6 +18,15 @@ public class Backups {
         return backups.size();
     }
 
+    public int unprotectedSize() {
+        int c = 0;
+        for(Backup backup : getBackups()) {
+            if(backup.isProtected()) continue;
+            c++;
+        }
+        return c;
+    }
+
     public boolean contains(Backup backup) {
         return backups.contains(backup);
     }
