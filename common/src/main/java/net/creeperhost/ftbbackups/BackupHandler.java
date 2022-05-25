@@ -55,6 +55,10 @@ public class BackupHandler {
         createBackupFolder(backupFolderPath);
         loadJson();
         FTBBackups.LOGGER.info("Starting backup cleaning thread");
+        if(FTBBackups.backupCleanerWatcherExecutorService.isShutdown())
+        {
+            FTBBackups.backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1);
+        }
         FTBBackups.backupCleanerWatcherExecutorService.scheduleAtFixedRate(BackupHandler::clean, 0, 30, TimeUnit.SECONDS);
     }
 

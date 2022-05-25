@@ -3,6 +3,7 @@ package net.creeperhost.ftbbackups.config;
 import blue.endless.jankson.Jankson;
 import blue.endless.jankson.JsonElement;
 import blue.endless.jankson.JsonObject;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import net.creeperhost.ftbbackups.FTBBackups;
 import org.apache.commons.io.IOUtils;
 
@@ -11,6 +12,7 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.nio.charset.Charset;
 import java.nio.file.*;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -100,6 +102,10 @@ public class Config {
                     } catch (Exception ignored) {
                     }
                 };
+                if(FTBBackups.configWatcherExecutorService.isShutdown())
+                {
+                    FTBBackups.configWatcherExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups Config Watcher %d").setDaemon(true).build());
+                }
                 FTBBackups.configWatcherExecutorService.scheduleAtFixedRate(configWatcher, 0, 10, TimeUnit.SECONDS);
 
             } catch (Exception ignored) {
