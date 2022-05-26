@@ -44,12 +44,18 @@ public class FileUtils {
     private static void packIntoZip(ZipOutputStream zos, Path rootDir, Path file) throws IOException {
         // Don't pack session.lock files
         if (file.getFileName().toString().equals("session.lock")) return;
+        // Don't try and copy a file that does not exist
+        if(!file.toFile().exists()) return;
         // Ensure files are readable
         if (!Files.isReadable(file)) return;
 
         ZipEntry zipEntry = new ZipEntry(rootDir.relativize(file).toString());
         zos.putNextEntry(zipEntry);
-        Files.copy(file, zos);
+        try
+        {
+            Files.copy(file, zos);
+        }
+        catch (Exception ignored){}
         zos.closeEntry();
     }
 
