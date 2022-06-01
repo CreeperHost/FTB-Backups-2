@@ -44,12 +44,14 @@ processResources {
 shadowJar {
     configurations = [project.configurations.shadowCommon]
     dependencies {
+        exclude(dependency("org.apache.logging::"))
         exclude(dependency("org.slf4j::"))
         exclude(dependency("javax.transaction::"))
     }
 
     relocate 'blue.endless.jankson', 'net.creeperhost.ftbbackups.blue.endless.jankson'
     relocate 'org.quartz', 'net.creeperhost.ftbbackups.org.quartz'
+    relocate 'de.piegames', 'net.creeperhost.ftbbackups.de.piegames'
 
     classifier "dev-shadow"
 }
