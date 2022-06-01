@@ -20,6 +20,7 @@ import org.quartz.impl.StdSchedulerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Properties;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -27,8 +28,10 @@ public class FTBBackups {
     public static final String MOD_ID = "ftbbackups2";
     public static Logger LOGGER = LogManager.getLogger();
     public static Path configFile = Platform.getConfigFolder().resolve(MOD_ID + ".json");
+
     public static ScheduledExecutorService configWatcherExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups Config Watcher %d").setDaemon(true).build());
-    public static ScheduledExecutorService backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1);
+    public static ScheduledExecutorService backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder().setNameFormat("FTB Backups scheduled executor %d").setDaemon(true).build());
+    public static ExecutorService backupExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups backup thread %d").setDaemon(true).build());
 
     public static MinecraftServer minecraftServer;
     public static Scheduler scheduler;
@@ -55,6 +58,7 @@ public class FTBBackups {
     private static void serverStartedEvent(MinecraftServer minecraftServer) {
         FTBBackups.minecraftServer = minecraftServer;
         BackupHandler.init(minecraftServer);
+        isShutdown = false;
         if (Config.cached().enabled) {
             if (!CronExpression.isValidExpression(Config.cached().backup_cron)) {
                 FTBBackups.LOGGER.error("backup_cron is invalid, restoring default value");
@@ -97,15 +101,19 @@ public class FTBBackups {
                 if(shutdownCount > 120) break;
                 //Let's hold up shutting down if we're mid-backup I guess... But limit it to waiting 2 minutes.
                 try {
+                    FTBBackups.LOGGER.info("Backup in progress, Waiting for it to finish before shutting down ");
                     Thread.sleep(1000);
                     shutdownCount++;
                 } catch (InterruptedException ignored) {}
             }
 
-            scheduler.shutdown();
+            scheduler.clear();
+            scheduler.shutdown(false);
             Config.watcher.get().close();
             FTBBackups.configWatcherExecutorService.shutdownNow();
             FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
+            FTBBackups.backupExecutor.shutdownNow();
+
         } catch (Exception e)
         {
             e.printStackTrace();

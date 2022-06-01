@@ -1,5 +1,6 @@
 package net.creeperhost.ftbbackups;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import de.piegames.blockmap.MinecraftDimension;
@@ -36,6 +37,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class BackupHandler {
 
+    private static Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+
     private static Path serverRoot;
     private static Path backupFolderPath;
     private static Path worldFolder;
@@ -47,7 +50,6 @@ public class BackupHandler {
     public static AtomicReference<Backups> backups = new AtomicReference<>(new Backups());
     private static String failReason = "";
     private static long lastAutoBackup = 0;
-    public static ExecutorService executor = Executors.newSingleThreadExecutor();
 
     public static void init(MinecraftServer minecraftServer) {
         serverRoot = minecraftServer.getServerDirectory().toPath().normalize().toAbsolutePath();
@@ -116,6 +118,7 @@ public class BackupHandler {
                 });
                 Files.deleteIfExists(previewPath);
             } catch(Exception ignored) {}
+            baos.close();
             return "data:image/png;base64, " + Base64.getEncoder().encodeToString(image);
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -219,7 +222,7 @@ public class BackupHandler {
                     //Print the stacktrace
                     e.printStackTrace();
                 }
-            }, executor).thenRun(() ->
+            }, FTBBackups.backupExecutor).thenRun(() ->
             {
                 //If the backup failed then we don't need to do anything
                 if (backupFailed.get()) {
@@ -253,6 +256,7 @@ public class BackupHandler {
         } else {
             //Create a new message for the failReason
             if (!failReason.isEmpty()) {
+                backupRunning.set(false);
                 String failMessage = "Unable to create backup, Reason: " + failReason;
                 //Alert players of the fail status using the message
                 alertPlayers(minecraftServer, new TranslatableComponent(failMessage));
@@ -320,10 +324,10 @@ public class BackupHandler {
                 int backupsNeedRemoving = (backups.get().unprotectedSize() - Config.cached().max_backups);
                 if (backupsNeedRemoving > 0 && getOldestBackup() != null) {
                     for (int i = 0; i < backupsNeedRemoving; i++) {
-                        File backupFile = new File(getOldestBackup().getBackupLocation());
-                        if (backupFile.exists()) {
-                            boolean removed = backupFile.delete();
-                            String log = removed ? "Removed old backup " + backupFile.getName() : " Failed to remove backup " + backupFile.getName();
+                        Path backupFile = Path.of(getOldestBackup().getBackupLocation());
+                        if (Files.exists(backupFile)) {
+                            boolean removed = Files.deleteIfExists(backupFile);
+                            String log = removed ? "Removed old backup " + backupFile.getFileName() : " Failed to remove backup " + backupFile.getFileName();
                             FTBBackups.LOGGER.info(log);
                         }
                     }
@@ -336,12 +340,13 @@ public class BackupHandler {
     }
 
     public static void loadJson() {
-        File json = backupFolderPath.resolve("backups.json").toFile();
-        if (json.exists()) {
+        Path json = backupFolderPath.resolve("backups.json");
+        if (Files.exists(json)) {
             Gson gson = new Gson();
             try {
-                FileReader fileReader = new FileReader(json);
+                FileReader fileReader = new FileReader(json.toFile());
                 backups.getAndUpdate(backups1 -> (gson.fromJson(fileReader, Backups.class)));
+                fileReader.close();
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -350,10 +355,9 @@ public class BackupHandler {
 
     public static void updateJson() {
         try {
-            Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
             String jsonString = "[]";
             if (!backups.get().isEmpty()) {
-                jsonString = gson.toJson(backups.get(), Backups.class);
+                jsonString = GSON.toJson(backups.get(), Backups.class);
             }
             writeToFile(jsonString);
         } catch (Exception e) {
@@ -365,6 +369,7 @@ public class BackupHandler {
         FTBBackups.LOGGER.info("Writing to file " + backupFolderPath.resolve("backups.json"));
         try (FileOutputStream fileOutputStream = new FileOutputStream(backupFolderPath.resolve("backups.json").toFile())) {
             IOUtils.write(json, fileOutputStream, Charset.defaultCharset());
+            fileOutputStream.close();
         } catch (Throwable throwable) {
             throwable.printStackTrace();
         }
@@ -445,7 +450,7 @@ public class BackupHandler {
     }
 
     public static void createBackupFolder(Path path) {
-        if (!path.toFile().exists()) {
+        if (!Files.exists(path)) {
             boolean backupFolderCreated = path.toFile().mkdirs();
             String log = backupFolderCreated ? "Created backup folder at " + path.toAbsolutePath() : "Failed to create backup folder at " + path.toAbsolutePath();
             FTBBackups.LOGGER.info(log);
