@@ -101,7 +101,7 @@ public class FTBBackups {
                 if(shutdownCount > 120) break;
                 //Let's hold up shutting down if we're mid-backup I guess... But limit it to waiting 2 minutes.
                 try {
-                    FTBBackups.LOGGER.info("Backup in progress, Waiting for it to finish before shutting down ");
+                    if (shutdownCount % 10 == 0) FTBBackups.LOGGER.info("Backup in progress, Waiting for it to finish before shutting down.");
                     Thread.sleep(1000);
                     shutdownCount++;
                 } catch (InterruptedException ignored) {}

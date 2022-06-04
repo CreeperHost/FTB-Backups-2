@@ -228,6 +228,7 @@ public class BackupHandler {
                 if (backupFailed.get()) {
                     //This reset should not be needed but making sure anyway
                     backupFailed.set(false);
+                    backupRunning.set(false);
                     return;
                 }
 
