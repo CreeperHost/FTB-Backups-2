@@ -33,3 +33,10 @@ mandatory = true
 versionRange = "[5.5.16,)"
 ordering = "AFTER"
 side = "BOTH"
+
+[[dependencies.minetogether]]
+modId = "polylib"
+mandatory = true
+versionRange = "[1901.0.2,)"
+ordering = "AFTER"
+side = "BOTH"
