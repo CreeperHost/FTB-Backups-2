@@ -34,7 +34,7 @@ versionRange = "[5.5.16,)"
 ordering = "AFTER"
 side = "BOTH"
 
-[[dependencies.minetogether]]
+[[dependencies.ftbbackups2]]
 modId = "polylib"
 mandatory = true
 versionRange = "[1901.0.2,)"
