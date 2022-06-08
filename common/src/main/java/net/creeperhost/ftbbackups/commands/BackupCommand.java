@@ -7,7 +7,7 @@ import net.creeperhost.ftbbackups.BackupHandler;
 import net.creeperhost.ftbbackups.config.Config;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.TranslatableComponent;
+import net.minecraft.network.chat.Component;
 
 import java.util.Locale;
 
@@ -42,7 +42,7 @@ public class BackupCommand {
                 lastManualBackupTime = System.currentTimeMillis() ;
                 BackupHandler.createBackup(cs.getSource().getServer(), isProtected);
             } else {
-                cs.getSource().sendFailure(new TranslatableComponent("Unable to create backup, Last backup was taken less than " + Config.cached().max_backups + " Minutes ago"));
+                cs.getSource().sendFailure(Component.literal("Unable to create backup, Last backup was taken less than " + Config.cached().max_backups + " Minutes ago"));
             }
         }
         return 0;

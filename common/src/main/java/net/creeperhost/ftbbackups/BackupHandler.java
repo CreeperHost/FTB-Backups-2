@@ -15,7 +15,6 @@ import net.creeperhost.ftbbackups.data.Backups;
 import net.creeperhost.ftbbackups.utils.FileUtils;
 import net.minecraft.Util;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.dedicated.DedicatedServer;
 import net.minecraft.server.level.ServerLevel;
@@ -165,7 +164,7 @@ public class BackupHandler {
             {
                 try {
                     //Warn all online players that the server is going to start creating a backup
-                    alertPlayers(minecraftServer, new TranslatableComponent(FTBBackups.MOD_ID + ".backup.starting"));
+                    alertPlayers(minecraftServer, Component.translatable(FTBBackups.MOD_ID + ".backup.starting"));
                     //Create the full path to this backup
                     Path backupPath = backupFolderPath.resolve(backupName);
                     //Create a zip of the world folder and store it in the /backup folder
@@ -216,7 +215,7 @@ public class BackupHandler {
                     //The backup failed to store it
                     backupFailed.set(true);
                     //Set alerts to all players on the server
-                    alertPlayers(minecraftServer, new TranslatableComponent(FTBBackups.MOD_ID + ".backup.failed"));
+                    alertPlayers(minecraftServer, Component.translatable(FTBBackups.MOD_ID + ".backup.failed"));
                     //Log and print stacktraces
                     FTBBackups.LOGGER.error("Failed to create backup");
                     //Print the stacktrace
@@ -240,7 +239,7 @@ public class BackupHandler {
                 //Set world save state to false to allow saves again
                 setNoSave(minecraftServer, false);
                 //Alert players that backup has finished being created
-                alertPlayers(minecraftServer, new TranslatableComponent("Backup finished in " + format(elapsedTime)));
+                alertPlayers(minecraftServer, Component.translatable("Backup finished in " + format(elapsedTime)));
                 //Get the sha1 of the new backup .zip to store to the json file
                 String sha1 = FileUtils.getSha1(backupLocation);
                 //Do some math to figure out the ratio of compression
@@ -260,7 +259,7 @@ public class BackupHandler {
                 backupRunning.set(false);
                 String failMessage = "Unable to create backup, Reason: " + failReason;
                 //Alert players of the fail status using the message
-                alertPlayers(minecraftServer, new TranslatableComponent(failMessage));
+                alertPlayers(minecraftServer, Component.translatable(failMessage));
                 //Log the failMessage
                 FTBBackups.LOGGER.error(failMessage);
             }
@@ -472,12 +471,12 @@ public class BackupHandler {
         if (Config.cached().notify_op_only && minecraftServer instanceof DedicatedServer) {
             for (ServerPlayer player : minecraftServer.getPlayerList().getPlayers()) {
                 if (player.hasPermissions(4)) {
-                    player.sendMessage(message, Util.NIL_UUID);
+                    player.displayClientMessage(message, false);
                 }
             }
         } else {
             for (ServerPlayer player : minecraftServer.getPlayerList().getPlayers()) {
-                player.sendMessage(message, Util.NIL_UUID);
+                player.displayClientMessage(message, false);
             }
         }
     }

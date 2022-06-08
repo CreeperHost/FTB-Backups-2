@@ -21,8 +21,8 @@
   },
   "depends": {
     "fabric": "*",
-    "minecraft": ">=1.18",
-    "architectury": ">=3.3.7"
+    "minecraft": ">=1.19",
+    "architectury": ">=5.5.16"
   },
   "suggests": {
     "flamingo": "*"
