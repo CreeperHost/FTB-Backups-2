@@ -37,6 +37,6 @@ side = "BOTH"
 [[dependencies.ftbbackups2]]
 modId = "polylib"
 mandatory = true
-versionRange = "[1901.0.2,)"
+versionRange = "[1900.0.2,)"
 ordering = "AFTER"
 side = "BOTH"
