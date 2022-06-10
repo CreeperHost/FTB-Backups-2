@@ -262,7 +262,10 @@ public class BackupHandler {
                 alertPlayers(minecraftServer, Component.translatable(failMessage));
                 //Log the failMessage
                 FTBBackups.LOGGER.error(failMessage);
+                //Reset the fail to avoid confusion
+                failMessage = "";
             }
+            backupRunning.set(false);
         }
     }
 
@@ -369,7 +372,6 @@ public class BackupHandler {
         FTBBackups.LOGGER.info("Writing to file " + backupFolderPath.resolve("backups.json"));
         try (FileOutputStream fileOutputStream = new FileOutputStream(backupFolderPath.resolve("backups.json").toFile())) {
             IOUtils.write(json, fileOutputStream, Charset.defaultCharset());
-            fileOutputStream.close();
         } catch (Throwable throwable) {
             throwable.printStackTrace();
         }
@@ -385,20 +387,15 @@ public class BackupHandler {
             return false;
         }
         if (backupRunning.get()) {
-            failReason = "backup is already running";
+            FTBBackups.LOGGER.info("Unable to start new backup as backup is already running");
+            failReason = "Unable to start new backup as backup is already running";
             return false;
         }
         if (lastAutoBackup != 0 && Config.cached().manual_backups_time != 0) {
             if (System.currentTimeMillis()< (lastAutoBackup + 60000L)) {
-                failReason = "";
+                failReason = "Manuel backup was recently taken";
                 return false;
             }
-        }
-
-        if(backupRunning.get())
-        {
-            FTBBackups.LOGGER.info("Unable to start new backup as backup is already running");
-            return false;
         }
 
         long free = backupFolderPath.toFile().getFreeSpace();
