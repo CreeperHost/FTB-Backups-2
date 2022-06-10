@@ -3,22 +3,28 @@ package net.creeperhost.ftbbackups.commands;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.creeperhost.ftbbackups.BackupHandler;
 import net.creeperhost.ftbbackups.config.Config;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.TranslatableComponent;
 
 import java.util.Locale;
 
 public class BackupCommand {
     public static long lastManualBackupTime = 0;
+    public static final SuggestionProvider<CommandSourceStack> SUGGESTIONS = (commandContext, suggestionsBuilder) -> {
+        String[] strings = new String[]{"start", "snapshot"};
+        return SharedSuggestionProvider.suggest(strings, suggestionsBuilder);
+    };
 
     public static LiteralArgumentBuilder<CommandSourceStack> register() {
         return Commands.literal("backup")
                 .requires(cs -> cs.hasPermission(Config.cached().command_permission_level))
                 .then(
-                        Commands.argument("command", StringArgumentType.string())
+                        Commands.argument("command", StringArgumentType.string()).suggests(SUGGESTIONS)
                                 .executes(cs -> execute(cs, StringArgumentType.getString(cs, "command")))
                 );
     }
