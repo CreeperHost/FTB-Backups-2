@@ -17,8 +17,8 @@ import org.apache.logging.log4j.Logger;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 
-import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -29,9 +29,9 @@ public class FTBBackups {
     public static Logger LOGGER = LogManager.getLogger();
     public static Path configFile = Platform.getConfigFolder().resolve(MOD_ID + ".json");
 
-    public static ScheduledExecutorService configWatcherExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups Config Watcher %d").setDaemon(true).build());
-    public static ScheduledExecutorService backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder().setNameFormat("FTB Backups scheduled executor %d").setDaemon(true).build());
-    public static ExecutorService backupExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups backup thread %d").setDaemon(true).build());
+    public static ScheduledExecutorService configWatcherExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups Config Watcher %d").build());
+    public static ScheduledExecutorService backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder().setNameFormat("FTB Backups scheduled executor %d").build());
+    public static ExecutorService backupExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups backup thread %d").build());
 
     public static MinecraftServer minecraftServer;
     public static Scheduler scheduler;
@@ -42,7 +42,7 @@ public class FTBBackups {
         Config.init(configFile.toFile());
         CommandRegistrationEvent.EVENT.register(FTBBackups::onCommandRegisterEvent);
         LifecycleEvent.SERVER_STARTED.register(FTBBackups::serverStartedEvent);
-        LifecycleEvent.SERVER_STOPPED.register(FTBBackups::serverStoppedEvent);
+        LifecycleEvent.SERVER_STOPPING.register(FTBBackups::serverStoppedEvent);
         LifecycleEvent.SERVER_LEVEL_SAVE.register(FTBBackups::serverSaveEvent);
         Runtime.getRuntime().addShutdownHook(new Thread(FTBBackups::killOutThreads));
     }
@@ -107,13 +107,31 @@ public class FTBBackups {
                 } catch (InterruptedException ignored) {}
             }
 
-            scheduler.clear();
-            scheduler.shutdown(false);
+            if(BackupHandler.currentFuture != null)
+            {
+                LOGGER.info("Forcing current future to cancel");
+                BackupHandler.currentFuture.cancel(true);
+            }
+            if(!scheduler.isShutdown())
+            {
+                LOGGER.info("Shutting down the scheduler thread");
+                try
+                {
+                    scheduler.shutdown(false);
+                }
+                catch (SchedulerException e)
+                {
+                    e.printStackTrace();
+                }
+            }
+            LOGGER.info("Closing the file watcher");
             Config.watcher.get().close();
+            LOGGER.info("Shutting down the config watcher executor");
             FTBBackups.configWatcherExecutorService.shutdownNow();
+            LOGGER.info("Shutting down backup cleaning executor");
             FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
+            LOGGER.info("Shutting down backup executor");
             FTBBackups.backupExecutor.shutdownNow();
-
         } catch (Exception e)
         {
             e.printStackTrace();

@@ -109,6 +109,7 @@ public class Config {
                 FTBBackups.configWatcherExecutorService.scheduleAtFixedRate(configWatcher, 0, 10, TimeUnit.SECONDS);
 
             } catch (Exception ignored) {
+                ignored.printStackTrace();
             }
 
             if (!file.exists()) {

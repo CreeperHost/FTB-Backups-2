@@ -22,8 +22,7 @@
   "depends": {
     "fabric": "*",
     "minecraft": ">=1.19",
-    "architectury": ">=5.5.16",
-    "polylib": ">=1900.0.2"
+    "architectury": ">=5.5.16"
   },
   "suggests": {
     "flamingo": "*"

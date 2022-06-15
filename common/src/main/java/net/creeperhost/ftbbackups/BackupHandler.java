@@ -44,6 +44,8 @@ public class BackupHandler {
     private static final AtomicBoolean backupRunning = new AtomicBoolean(false);
     private static final AtomicBoolean backupFailed = new AtomicBoolean(false);
     private static AtomicReference<String> backupPreview = new AtomicReference<>("");
+    public static CompletableFuture<Void> currentFuture;
+
     public static boolean isDirty = false;
 
     public static AtomicReference<Backups> backups = new AtomicReference<>(new Backups());
@@ -58,7 +60,7 @@ public class BackupHandler {
         FTBBackups.LOGGER.info("Starting backup cleaning thread");
         if(FTBBackups.backupCleanerWatcherExecutorService.isShutdown())
         {
-            FTBBackups.backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1);
+            FTBBackups.backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder().setNameFormat("FTB Backups scheduled executor %d").build());
         }
         FTBBackups.backupCleanerWatcherExecutorService.scheduleAtFixedRate(BackupHandler::clean, 0, 30, TimeUnit.SECONDS);
     }
@@ -132,9 +134,12 @@ public class BackupHandler {
     public static void createBackup(MinecraftServer minecraftServer) {
         createBackup(minecraftServer, false);
     }
-    public static void createBackup(MinecraftServer minecraftServer, boolean protect) {
+    public static void createBackup(MinecraftServer minecraftServer, boolean protect)
+    {
         if(FTBBackups.isShutdown) return;
-        if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty) {
+
+        if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty)
+        {
             FTBBackups.LOGGER.info("Skipping backup, no players have been online since last backup.");
             return;
         }
@@ -146,7 +151,8 @@ public class BackupHandler {
         String backupName = date + "_" + time + ".zip";
         Path backupLocation = backupFolderPath.resolve(backupName);
 
-        if (canCreateBackup()) {
+        if (canCreateBackup())
+        {
             lastAutoBackup = System.currentTimeMillis();
 
             backupRunning.set(true);
@@ -160,7 +166,7 @@ public class BackupHandler {
             AtomicLong finishTime = new AtomicLong();
 
             //Start the backup process in its own thread
-            CompletableFuture.runAsync(() ->
+            currentFuture = CompletableFuture.runAsync(() ->
             {
                 try {
                     //Warn all online players that the server is going to start creating a backup
@@ -223,6 +229,7 @@ public class BackupHandler {
                 }
             }, FTBBackups.backupExecutor).thenRun(() ->
             {
+                currentFuture = null;
                 //If the backup failed then we don't need to do anything
                 if (backupFailed.get()) {
                     //This reset should not be needed but making sure anyway
@@ -372,6 +379,7 @@ public class BackupHandler {
         FTBBackups.LOGGER.info("Writing to file " + backupFolderPath.resolve("backups.json"));
         try (FileOutputStream fileOutputStream = new FileOutputStream(backupFolderPath.resolve("backups.json").toFile())) {
             IOUtils.write(json, fileOutputStream, Charset.defaultCharset());
+            fileOutputStream.close();
         } catch (Throwable throwable) {
             throwable.printStackTrace();
         }
@@ -396,6 +404,13 @@ public class BackupHandler {
                 failReason = "Manuel backup was recently taken";
                 return false;
             }
+        }
+
+        if(currentFuture != null)
+        {
+            failReason = "backup thread is somehow still running";
+            FTBBackups.LOGGER.error("currentFuture is not null??");
+            return false;
         }
 
         long free = backupFolderPath.toFile().getFreeSpace();
@@ -436,11 +451,10 @@ public class BackupHandler {
         List<Backup> backupsCopy = new ArrayList<>(backups.get().getBackups());
         for (Backup backup : backupsCopy) {
             FTBBackups.LOGGER.debug("Verifying backup " + backup.getBackupLocation());
-            File file = new File(backup.getBackupLocation());
 
-            if (!file.exists()) {
+            if (Files.exists(Path.of(backup.getBackupLocation()))) {
                 removeBackup(backup);
-                FTBBackups.LOGGER.info("File missing, removing from backups " + file.toPath());
+                FTBBackups.LOGGER.info("File missing, removing from backups " + backup.getBackupLocation());
             }
         }
         updateJson();
