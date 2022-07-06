@@ -32,4 +32,7 @@ public class ConfigData {
 
     @Comment("Additional directories to include in backup")
     public List<String> additional_directories = new ArrayList<>();
+
+    @Comment("Display file size in backup message")
+    public boolean display_file_size = false;
 }
