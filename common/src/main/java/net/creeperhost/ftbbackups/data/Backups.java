@@ -19,12 +19,7 @@ public class Backups {
     }
 
     public int unprotectedSize() {
-        int c = 0;
-        for(Backup backup : getBackups()) {
-            if(backup.isProtected()) continue;
-            c++;
-        }
-        return c;
+        return getBackups().stream().filter(backup ->!backup.isProtected()).toList().size();
     }
 
     public boolean contains(Backup backup) {
@@ -38,8 +33,4 @@ public class Backups {
     public List<Backup> getBackups() {
         return backups;
     }
-
-    //Gson
-
-
 }

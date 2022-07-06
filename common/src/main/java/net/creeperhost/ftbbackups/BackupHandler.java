@@ -452,7 +452,7 @@ public class BackupHandler {
         for (Backup backup : backupsCopy) {
             FTBBackups.LOGGER.debug("Verifying backup " + backup.getBackupLocation());
 
-            if (Files.exists(Path.of(backup.getBackupLocation()))) {
+            if (!Files.exists(Path.of(backup.getBackupLocation()))) {
                 removeBackup(backup);
                 FTBBackups.LOGGER.info("File missing, removing from backups " + backup.getBackupLocation());
             }
