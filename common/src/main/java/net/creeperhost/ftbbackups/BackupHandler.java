@@ -15,6 +15,7 @@ import net.creeperhost.ftbbackups.data.Backups;
 import net.creeperhost.ftbbackups.utils.FileUtils;
 import net.minecraft.Util;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.dedicated.DedicatedServer;
@@ -29,6 +30,7 @@ import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,6 +53,9 @@ public class BackupHandler {
     private static String failReason = "";
     private static long lastAutoBackup = 0;
 
+    public static CompletableFuture<Void> currentFuture;
+
+
     public static void init(MinecraftServer minecraftServer) {
         serverRoot = minecraftServer.getServerDirectory().toPath().normalize().toAbsolutePath();
         backupFolderPath = serverRoot.resolve("backups");
@@ -59,7 +64,7 @@ public class BackupHandler {
         FTBBackups.LOGGER.info("Starting backup cleaning thread");
         if(FTBBackups.backupCleanerWatcherExecutorService.isShutdown())
         {
-            FTBBackups.backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1);
+            FTBBackups.backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder().setNameFormat("FTB Backups scheduled executor %d").build());
         }
         FTBBackups.backupCleanerWatcherExecutorService.scheduleAtFixedRate(BackupHandler::clean, 0, 30, TimeUnit.SECONDS);
     }
@@ -161,7 +166,7 @@ public class BackupHandler {
             AtomicLong finishTime = new AtomicLong();
 
             //Start the backup process in its own thread
-            CompletableFuture.runAsync(() ->
+            currentFuture = CompletableFuture.runAsync(() ->
             {
                 try {
                     //Warn all online players that the server is going to start creating a backup
@@ -224,6 +229,7 @@ public class BackupHandler {
                 }
             }, FTBBackups.backupExecutor).thenRun(() ->
             {
+                currentFuture = null;
                 //If the backup failed then we don't need to do anything
                 if (backupFailed.get()) {
                     //This reset should not be needed but making sure anyway
@@ -240,7 +246,7 @@ public class BackupHandler {
                 //Set world save state to false to allow saves again
                 setNoSave(minecraftServer, false);
                 //Alert players that backup has finished being created
-                alertPlayers(minecraftServer, new TranslatableComponent("Backup finished in " + format(elapsedTime)));
+                alertPlayers(minecraftServer, new TextComponent("Backup finished in " + format(elapsedTime) + (Config.cached().display_file_size ? " Size: " + FileUtils.getSizeString(backupLocation.toFile().length()) : "")));
                 //Get the sha1 of the new backup .zip to store to the json file
                 String sha1 = FileUtils.getSha1(backupLocation);
                 //Do some math to figure out the ratio of compression
@@ -398,6 +404,12 @@ public class BackupHandler {
                 return false;
             }
         }
+        if(currentFuture != null)
+        {
+            failReason = "backup thread is somehow still running";
+            FTBBackups.LOGGER.error("currentFuture is not null??");
+            return false;
+        }
 
         long free = backupFolderPath.toFile().getFreeSpace();
         long currentWorldSize = FileUtils.getFolderSize(worldFolder.toFile());
@@ -437,11 +449,10 @@ public class BackupHandler {
         List<Backup> backupsCopy = new ArrayList<>(backups.get().getBackups());
         for (Backup backup : backupsCopy) {
             FTBBackups.LOGGER.debug("Verifying backup " + backup.getBackupLocation());
-            File file = new File(backup.getBackupLocation());
 
-            if (!file.exists()) {
+            if (!Files.exists(Path.of(backup.getBackupLocation()))) {
                 removeBackup(backup);
-                FTBBackups.LOGGER.info("File missing, removing from backups " + file.toPath());
+                FTBBackups.LOGGER.info("File missing, removing from backups " + backup.getBackupLocation());
             }
         }
         updateJson();
@@ -481,9 +492,11 @@ public class BackupHandler {
 
     public static String format(long nano)
     {
-        return String.format("%d sec, %d ms",
-                TimeUnit.NANOSECONDS.toSeconds(nano),
-                TimeUnit.NANOSECONDS.toMillis(nano) - TimeUnit.MINUTES.toSeconds(TimeUnit.NANOSECONDS.toSeconds(nano))
-        );
+        Duration duration = Duration.ofNanos(nano);
+
+        long mins = duration.toMinutes();
+        long seconds  = duration.minusMinutes(mins).toSeconds();
+        long mili = duration.minusSeconds(seconds).toMillis();
+        return mins + "m, " +  seconds + "s, " + mili + "ms";
     }
 }
