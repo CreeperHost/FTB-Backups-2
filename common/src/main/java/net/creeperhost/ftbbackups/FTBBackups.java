@@ -7,6 +7,7 @@ import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.platform.Platform;
 import net.creeperhost.ftbbackups.commands.BackupCommand;
 import net.creeperhost.ftbbackups.config.Config;
+import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.MinecraftServer;
@@ -112,7 +113,7 @@ public class FTBBackups {
                 LOGGER.info("Forcing current future to cancel");
                 BackupHandler.currentFuture.cancel(true);
             }
-            if(!scheduler.isShutdown())
+            if(scheduler != null && !scheduler.isShutdown())
             {
                 LOGGER.info("Shutting down the scheduler thread");
                 try
@@ -138,8 +139,8 @@ public class FTBBackups {
         }
     }
 
-    private static void onCommandRegisterEvent(CommandDispatcher<CommandSourceStack> cs, Commands.CommandSelection commandSelection) {
-        cs.register(BackupCommand.register());
+    private static void onCommandRegisterEvent(CommandDispatcher<CommandSourceStack> commandSourceStackCommandDispatcher, CommandBuildContext commandBuildContext, Commands.CommandSelection commandSelection) {
+        commandSourceStackCommandDispatcher.register(BackupCommand.register());
     }
 
     public static class BackupJob implements Job {
