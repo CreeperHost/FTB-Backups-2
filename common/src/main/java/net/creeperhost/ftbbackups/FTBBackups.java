@@ -133,6 +133,7 @@ public class FTBBackups {
             FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
             LOGGER.info("Shutting down backup executor");
             FTBBackups.backupExecutor.shutdownNow();
+            BackupHandler.backupRunning.set(false);
         } catch (Exception e)
         {
             e.printStackTrace();

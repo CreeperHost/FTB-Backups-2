@@ -41,7 +41,7 @@ public class BackupHandler {
     private static Path serverRoot;
     private static Path backupFolderPath;
     private static Path worldFolder;
-    private static final AtomicBoolean backupRunning = new AtomicBoolean(false);
+    public static final AtomicBoolean backupRunning = new AtomicBoolean(false);
     private static final AtomicBoolean backupFailed = new AtomicBoolean(false);
     private static AtomicReference<String> backupPreview = new AtomicReference<>("");
     public static CompletableFuture<Void> currentFuture;
@@ -58,6 +58,10 @@ public class BackupHandler {
         createBackupFolder(backupFolderPath);
         loadJson();
         FTBBackups.LOGGER.info("Starting backup cleaning thread");
+        if(FTBBackups.backupExecutor == null || FTBBackups.backupExecutor.isShutdown())
+        {
+            FTBBackups.backupExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups backup thread %d").build());
+        }
         if(FTBBackups.backupCleanerWatcherExecutorService.isShutdown())
         {
             FTBBackups.backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder().setNameFormat("FTB Backups scheduled executor %d").build());
