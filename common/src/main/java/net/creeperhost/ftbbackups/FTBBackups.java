@@ -113,6 +113,7 @@ public class FTBBackups {
             FTBBackups.configWatcherExecutorService.shutdownNow();
             FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
             FTBBackups.backupExecutor.shutdownNow();
+            BackupHandler.backupRunning.set(false);
 
         } catch (Exception e)
         {
