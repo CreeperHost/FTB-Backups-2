@@ -10,6 +10,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.dedicated.DedicatedServer;
 
 import java.util.Locale;
 
@@ -23,7 +24,7 @@ public class BackupCommand {
 
     public static LiteralArgumentBuilder<CommandSourceStack> register() {
         return Commands.literal("backup")
-                .requires(cs -> cs.hasPermission(Config.cached().command_permission_level))
+                .requires(cs -> cs.hasPermission(cs.getServer() instanceof DedicatedServer ? Config.cached().command_permission_level : 0))
                 .then(
                         Commands.argument("command", StringArgumentType.string()).suggests(SUGGESTIONS)
                                 .executes(cs -> execute(cs, StringArgumentType.getString(cs, "command")))
