@@ -21,7 +21,7 @@ public class ConfigData {
     @Comment("Maximum number of backups to keep")
     public int max_backups = 5;
 
-    @Comment("This is done with Javas implementation of cron, More info here \n (https://docs.oracle.com/cd/E12058_01/doc/doc.1014/e12030/cron_expressions.htm)")
+    @Comment("This is done with Javas implementation of cron, More info here \n (https://www.cronmaker.com)")
     public String backup_cron = "0 */30 * * * ?";
 
     @Comment("Time between manual backups using the command")
