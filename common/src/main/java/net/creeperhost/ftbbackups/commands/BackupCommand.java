@@ -47,7 +47,6 @@ public class BackupCommand {
                 break;
         }
         if (Config.cached().manual_backups_time == 0) {
-            cs.getSource().getServer().saveAllChunks(true, true, true);
             BackupHandler.isDirty = true;
             BackupHandler.createBackup(cs.getSource().getServer(), isProtected);
         } else {
