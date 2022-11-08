@@ -35,4 +35,7 @@ public class ConfigData {
 
     @Comment("Display file size in backup message")
     public boolean display_file_size = false;
+
+    @Comment("backup location")
+    public String backup_location = ".";
 }
