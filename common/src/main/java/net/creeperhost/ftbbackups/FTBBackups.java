@@ -48,6 +48,11 @@ public class FTBBackups {
         Runtime.getRuntime().addShutdownHook(new Thread(FTBBackups::killOutThreads));
     }
 
+    private static void onCommandRegisterEvent(CommandDispatcher<CommandSourceStack> commandSourceStackCommandDispatcher, Commands.CommandSelection commandSelection)
+    {
+        commandSourceStackCommandDispatcher.register(BackupCommand.register());
+    }
+
     private static void serverSaveEvent(ServerLevel serverLevel) {
         if(serverLevel == null || serverLevel.isClientSide) return;
         ServerPlayer player = serverLevel.getRandomPlayer();
@@ -122,10 +127,6 @@ public class FTBBackups {
         {
             e.printStackTrace();
         }
-    }
-
-    private static void onCommandRegisterEvent(CommandDispatcher<CommandSourceStack> commandSourceStackCommandDispatcher, CommandBuildContext commandBuildContext, Commands.CommandSelection commandSelection) {
-        commandSourceStackCommandDispatcher.register(BackupCommand.register());
     }
 
     public static class BackupJob implements Job {
