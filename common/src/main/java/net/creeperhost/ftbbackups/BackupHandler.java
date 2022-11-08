@@ -24,6 +24,7 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.imageio.ImageIO;
 import java.io.*;
+import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -44,18 +45,49 @@ public class BackupHandler {
     public static final AtomicBoolean backupRunning = new AtomicBoolean(false);
     private static final AtomicBoolean backupFailed = new AtomicBoolean(false);
     private static AtomicReference<String> backupPreview = new AtomicReference<>("");
-    public static CompletableFuture<Void> currentFuture;
-
     public static boolean isDirty = false;
 
     public static AtomicReference<Backups> backups = new AtomicReference<>(new Backups());
     private static String failReason = "";
     private static long lastAutoBackup = 0;
 
+    public static CompletableFuture<Void> currentFuture;
+    public static Path defaultBackupLocation;
+
     public static void init(MinecraftServer minecraftServer) {
         serverRoot = minecraftServer.getServerDirectory().toPath().normalize().toAbsolutePath();
-        backupFolderPath = serverRoot.resolve("backups");
+        defaultBackupLocation = serverRoot.resolve("backups");
+
+        if(!Config.cached().backup_location.equalsIgnoreCase("."))
+        {
+            try
+            {
+                Path configPath = Path.of(Config.cached().backup_location);
+                if(Files.exists(configPath))
+                {
+                    FTBBackups.LOGGER.info("Using configured backups directory at {}" , configPath.toAbsolutePath());
+                    backupFolderPath = configPath;
+                }
+                else
+                {
+                    FTBBackups.LOGGER.error(configPath.toAbsolutePath() + " does not exist, please create the directory before continuing");
+                    backupFolderPath = defaultBackupLocation;
+                }
+            }
+            catch (Exception e)
+            {
+                FTBBackups.LOGGER.error("Unable to find backup folder from config {} using default {}", Config.cached().backup_location, defaultBackupLocation.toAbsolutePath());
+                e.printStackTrace();
+                backupFolderPath = defaultBackupLocation;
+            }
+        }
+        else
+        {
+            backupFolderPath = defaultBackupLocation;
+        }
+        createBackupFolder(defaultBackupLocation);
         createBackupFolder(backupFolderPath);
+
         loadJson();
         FTBBackups.LOGGER.info("Starting backup cleaning thread");
         if(FTBBackups.backupExecutor == null || FTBBackups.backupExecutor.isShutdown())
@@ -356,7 +388,7 @@ public class BackupHandler {
     }
 
     public static void loadJson() {
-        Path json = backupFolderPath.resolve("backups.json");
+        Path json = defaultBackupLocation.resolve("backups.json");
         if (Files.exists(json)) {
             Gson gson = new Gson();
             try {
@@ -382,8 +414,8 @@ public class BackupHandler {
     }
 
     public static void writeToFile(String json) {
-        FTBBackups.LOGGER.info("Writing to file " + backupFolderPath.resolve("backups.json"));
-        try (FileOutputStream fileOutputStream = new FileOutputStream(backupFolderPath.resolve("backups.json").toFile())) {
+        FTBBackups.LOGGER.info("Writing to file " + defaultBackupLocation.resolve("backups.json"));
+        try (FileOutputStream fileOutputStream = new FileOutputStream(defaultBackupLocation.resolve("backups.json").toFile())) {
             IOUtils.write(json, fileOutputStream, Charset.defaultCharset());
             fileOutputStream.close();
         } catch (Throwable throwable) {
