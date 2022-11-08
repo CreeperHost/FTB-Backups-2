@@ -41,16 +41,11 @@ public class FTBBackups {
 
     public static void init() {
         Config.init(configFile.toFile());
-        CommandRegistrationEvent.EVENT.register(FTBBackups::onCommandRegisterEvent);
+        CommandRegistrationEvent.EVENT.register((dispatcher, registry, selection) -> dispatcher.register(BackupCommand.register()));
         LifecycleEvent.SERVER_STARTED.register(FTBBackups::serverStartedEvent);
         LifecycleEvent.SERVER_STOPPING.register(FTBBackups::serverStoppedEvent);
         LifecycleEvent.SERVER_LEVEL_SAVE.register(FTBBackups::serverSaveEvent);
         Runtime.getRuntime().addShutdownHook(new Thread(FTBBackups::killOutThreads));
-    }
-
-    private static void onCommandRegisterEvent(CommandDispatcher<CommandSourceStack> commandSourceStackCommandDispatcher, Commands.CommandSelection commandSelection)
-    {
-        commandSourceStackCommandDispatcher.register(BackupCommand.register());
     }
 
     private static void serverSaveEvent(ServerLevel serverLevel) {
