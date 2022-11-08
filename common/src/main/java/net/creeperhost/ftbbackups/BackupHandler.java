@@ -168,7 +168,7 @@ public class BackupHandler {
     }
 
     public static void createBackup(MinecraftServer minecraftServer) {
-        createBackup(minecraftServer, false, "");
+        createBackup(minecraftServer, false, "automated");
     }
     public static void createBackup(MinecraftServer minecraftServer, boolean protect, String name) {
         if(FTBBackups.isShutdown) return;
