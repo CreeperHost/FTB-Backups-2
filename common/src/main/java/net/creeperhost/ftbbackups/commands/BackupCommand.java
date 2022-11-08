@@ -30,6 +30,11 @@ public class BackupCommand {
                                 Commands.argument("name", StringArgumentType.string())
                                         .executes(cs -> execute(cs, StringArgumentType.getString(cs, "command"), StringArgumentType.getString(cs, "name")))
                         )
+                )
+                .then(
+                        Commands.argument("command", StringArgumentType.string()).suggests(SUGGESTIONS)
+                                        .executes(cs -> execute(cs, StringArgumentType.getString(cs, "command"), "")
+                        )
                 );
     }
 
