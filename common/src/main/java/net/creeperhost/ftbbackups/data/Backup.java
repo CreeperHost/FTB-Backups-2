@@ -9,9 +9,9 @@ public class Backup {
     private String sha1 = "";
     private String preview = "";
     private boolean snapshot = false;
-    private String snapshot_name = "";
+    private String backupName = "";
 
-    public Backup(String worldName, long createTime, String backupLocation, long size, float ratio, String sha1, String preview, boolean snapshot, String snapshot_name) {
+    public Backup(String worldName, long createTime, String backupLocation, long size, float ratio, String sha1, String preview, boolean snapshot, String backupName) {
         this.worldName = worldName;
         this.createTime = createTime;
         this.backupLocation = backupLocation;
@@ -20,7 +20,7 @@ public class Backup {
         this.sha1 = sha1;
         this.preview = preview;
         this.snapshot = snapshot;
-        this.snapshot_name = snapshot_name;
+        this.backupName = backupName;
     }
 
     public String getWorldName() {
@@ -49,8 +49,8 @@ public class Backup {
         return backupLocation;
     }
 
-    public String getSnapshot_name()
+    public String getBackupName()
     {
-        return snapshot_name;
+        return backupName;
     }
 }
