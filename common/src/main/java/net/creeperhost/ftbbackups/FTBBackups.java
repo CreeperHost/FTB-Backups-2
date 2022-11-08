@@ -107,7 +107,7 @@ public class FTBBackups {
                 } catch (InterruptedException ignored) {}
             }
 
-            scheduler.clear();
+            if(!scheduler.isShutdown()) scheduler.clear();
             scheduler.shutdown(false);
             Config.watcher.get().close();
             FTBBackups.configWatcherExecutorService.shutdownNow();
