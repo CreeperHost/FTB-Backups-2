@@ -26,8 +26,10 @@ public class BackupCommand {
         return Commands.literal("backup")
                 .requires(cs -> cs.hasPermission(hasPerm(cs.getServer())))
                 .then(
-                        Commands.argument("command", StringArgumentType.string()).suggests(SUGGESTIONS)
-                                .executes(cs -> execute(cs, StringArgumentType.getString(cs, "command")))
+                        Commands.argument("command", StringArgumentType.string()).suggests(SUGGESTIONS).then(
+                                Commands.argument("name", StringArgumentType.string())
+                                        .executes(cs -> execute(cs, StringArgumentType.getString(cs, "command"), StringArgumentType.getString(cs, "name")))
+                        )
                 );
     }
 
@@ -37,7 +39,7 @@ public class BackupCommand {
         return 0;
     }
 
-    private static int execute(CommandContext<CommandSourceStack> cs, String command) {
+    private static int execute(CommandContext<CommandSourceStack> cs, String command, String name) {
         boolean isProtected = false;
         switch(command.toLowerCase(Locale.ROOT)) {
             case "snapshot":
@@ -46,14 +48,14 @@ public class BackupCommand {
         }
         if (Config.cached().manual_backups_time == 0) {
             BackupHandler.isDirty = true;
-            BackupHandler.createBackup(cs.getSource().getServer(), isProtected);
+            BackupHandler.createBackup(cs.getSource().getServer(), isProtected, name);
         } else {
             long configTimeFromMinutes = ((long) Config.cached().manual_backups_time) * 60_000;
             long lastBackupWithConfig = lastManualBackupTime + configTimeFromMinutes;
 
             if (System.currentTimeMillis() > lastBackupWithConfig) {
                 lastManualBackupTime = System.currentTimeMillis() ;
-                BackupHandler.createBackup(cs.getSource().getServer(), isProtected);
+                BackupHandler.createBackup(cs.getSource().getServer(), isProtected, name);
             } else {
                 cs.getSource().sendFailure(new TranslatableComponent("Unable to create backup, Last backup was taken less than " + Config.cached().max_backups + " Minutes ago"));
             }
