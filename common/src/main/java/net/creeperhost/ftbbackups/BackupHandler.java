@@ -168,10 +168,9 @@ public class BackupHandler {
     }
 
     public static void createBackup(MinecraftServer minecraftServer) {
-        createBackup(minecraftServer, false);
+        createBackup(minecraftServer, false, "");
     }
-    public static void createBackup(MinecraftServer minecraftServer, boolean protect)
-    {
+    public static void createBackup(MinecraftServer minecraftServer, boolean protect, String name) {
         if(FTBBackups.isShutdown) return;
 
         if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty)
@@ -292,7 +291,7 @@ public class BackupHandler {
                 FTBBackups.LOGGER.info("Backup size " + FileUtils.getSizeString(backupLocation.toFile().length()) + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
                 //Create the backup data entry to store to the json file
 
-                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1, backupPreview.get(), protect);
+                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1, backupPreview.get(), protect, name);
                 addBackup(backup);
 
                 updateJson();
