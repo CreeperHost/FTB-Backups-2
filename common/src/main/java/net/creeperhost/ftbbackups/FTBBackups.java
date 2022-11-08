@@ -108,24 +108,8 @@ public class FTBBackups {
                 } catch (InterruptedException ignored) {}
             }
 
-            if(BackupHandler.currentFuture != null)
-            {
-                LOGGER.info("Forcing current future to cancel");
-                BackupHandler.currentFuture.cancel(true);
-            }
-            if(scheduler != null && !scheduler.isShutdown())
-            {
-                LOGGER.info("Shutting down the scheduler thread");
-                try
-                {
-                    scheduler.shutdown(false);
-                }
-                catch (SchedulerException e)
-                {
-                    e.printStackTrace();
-                }
-            }
-            LOGGER.info("Closing the file watcher");
+            if(!scheduler.isShutdown()) scheduler.clear();
+            scheduler.shutdown(false);
             Config.watcher.get().close();
             LOGGER.info("Shutting down the config watcher executor");
             FTBBackups.configWatcherExecutorService.shutdownNow();
