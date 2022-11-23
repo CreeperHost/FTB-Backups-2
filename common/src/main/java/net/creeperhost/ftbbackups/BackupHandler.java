@@ -192,9 +192,9 @@ public class BackupHandler {
 
             backupRunning.set(true);
             //Force save all player data before we start the backup
-            minecraftServer.getPlayerList().saveAll();
+            minecraftServer.submit(() -> minecraftServer.getPlayerList().saveAll());
             //Force save all the chunk data
-            minecraftServer.saveAllChunks(true, true, true);
+            minecraftServer.submit(() -> minecraftServer.saveAllChunks(true, true, true));
             //Set the worlds not to save while we are creating a backup
             setNoSave(minecraftServer, true);
             //Store the time we started the backup
