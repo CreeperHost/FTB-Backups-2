@@ -193,10 +193,16 @@ public class BackupHandler {
 
         if (canCreateBackup()) {
             lastAutoBackup = System.currentTimeMillis();
+            if(backupRunning == null) return;
 
             backupRunning.set(true);
             //Force save all player data before we start the backup
-            minecraftServer.submit(() -> minecraftServer.getPlayerList().saveAll());
+            minecraftServer.submit(() -> {
+                if(minecraftServer == null) return;
+                if(minecraftServer.getPlayerList() == null) return;
+                if(minecraftServer.getPlayerList().getPlayerCount() == 0) return;
+                minecraftServer.getPlayerList().saveAll();
+            });
             //Force save all the chunk data
             minecraftServer.submit(() -> minecraftServer.saveAllChunks(true, true, true));
             //Set the worlds not to save while we are creating a backup
