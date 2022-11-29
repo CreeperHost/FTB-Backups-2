@@ -58,6 +58,8 @@ public class BackupHandler {
     public static Path defaultBackupLocation;
 
     public static void init(MinecraftServer minecraftServer) {
+        //Check to see if a player is online before we backup as the worldSaveEvent might now have fired yet depeding on user settings
+        FTBBackups.serverSaveEvent(minecraftServer.overworld());
         serverRoot = minecraftServer.getServerDirectory().toPath().normalize().toAbsolutePath();
         defaultBackupLocation = serverRoot.resolve("backups");
 
@@ -261,6 +263,8 @@ public class BackupHandler {
                     alertPlayers(minecraftServer, new TranslatableComponent(FTBBackups.MOD_ID + ".backup.failed"));
                     //Log and print stacktraces
                     FTBBackups.LOGGER.error("Failed to create backup");
+                    //Set isDirty back to false on error
+                    BackupHandler.isDirty = false;
                     //Print the stacktrace
                     e.printStackTrace();
                 }

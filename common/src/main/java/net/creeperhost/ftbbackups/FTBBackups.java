@@ -47,7 +47,7 @@ public class FTBBackups {
         Runtime.getRuntime().addShutdownHook(new Thread(FTBBackups::killOutThreads));
     }
 
-    private static void serverSaveEvent(ServerLevel serverLevel) {
+    public static void serverSaveEvent(ServerLevel serverLevel) {
         if(serverLevel == null || serverLevel.isClientSide) return;
         ServerPlayer player = serverLevel.getRandomPlayer();
         if(player != null ) {
