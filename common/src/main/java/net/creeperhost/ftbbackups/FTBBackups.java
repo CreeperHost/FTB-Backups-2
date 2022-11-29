@@ -49,10 +49,7 @@ public class FTBBackups {
 
     public static void serverSaveEvent(ServerLevel serverLevel) {
         if(serverLevel == null || serverLevel.isClientSide) return;
-        ServerPlayer player = serverLevel.getRandomPlayer();
-        if(player != null ) {
-            BackupHandler.isDirty = true;
-        }
+        BackupHandler.isDirty = serverLevel.getServer().getPlayerCount() > 0;
     }
 
     private static void serverStartedEvent(MinecraftServer minecraftServer) {
