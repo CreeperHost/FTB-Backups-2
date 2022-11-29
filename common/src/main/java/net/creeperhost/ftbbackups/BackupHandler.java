@@ -176,6 +176,8 @@ public class BackupHandler {
         createBackup(minecraftServer, false, "automated");
     }
     public static void createBackup(MinecraftServer minecraftServer, boolean protect, String name) {
+        if(minecraftServer == null) return;
+        if(minecraftServer.overworld() == null) return;
         if(FTBBackups.isShutdown) return;
         if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty) {
             FTBBackups.LOGGER.info("Skipping backup, no players have been online since last backup.");
@@ -507,12 +509,26 @@ public class BackupHandler {
         }
     }
 
-    public static void setNoSave(MinecraftServer minecraftServer, boolean value) {
-        for (ServerLevel level : minecraftServer.getAllLevels()) {
-            if (level != null) {
-                FTBBackups.LOGGER.info("Setting world " + level.dimension().location() + " save state to " + value);
-                level.noSave = value;
+    public static void setNoSave(MinecraftServer minecraftServer, boolean value)
+    {
+        if(minecraftServer == null) return;
+        try
+        {
+            if(minecraftServer.getAllLevels() != null)
+            {
+                for (ServerLevel level : minecraftServer.getAllLevels())
+                {
+                    if (level != null)
+                    {
+                        FTBBackups.LOGGER.info("Setting world " + level.dimension().location() + " save state to " + value);
+                        level.noSave = value;
+                    }
+                }
             }
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
         }
     }
 
