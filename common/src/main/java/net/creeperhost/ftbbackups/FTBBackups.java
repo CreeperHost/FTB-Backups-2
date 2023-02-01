@@ -108,8 +108,12 @@ public class FTBBackups {
                 } catch (InterruptedException ignored) {}
             }
 
-            if(!scheduler.isShutdown()) scheduler.clear();
-            scheduler.shutdown(false);
+            if(scheduler != null && !scheduler.isShutdown())
+            {
+                scheduler.clear();
+                LOGGER.info("Shutting down scheduler thread");
+                scheduler.shutdown(false);
+            }
             Config.watcher.get().close();
             LOGGER.info("Shutting down the config watcher executor");
             FTBBackups.configWatcherExecutorService.shutdownNow();
@@ -118,6 +122,7 @@ public class FTBBackups {
             LOGGER.info("Shutting down backup executor");
             FTBBackups.backupExecutor.shutdownNow();
             BackupHandler.backupRunning.set(false);
+            LOGGER.info("Shutdown completed, FTB Backups has now finished shutting down");
         } catch (Exception e)
         {
             e.printStackTrace();
