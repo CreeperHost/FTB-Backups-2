@@ -111,14 +111,29 @@ public class FTBBackups {
                 scheduler.shutdown(false);
             }
             Config.watcher.get().close();
-            LOGGER.info("Shutting down the config watcher executor");
-            FTBBackups.configWatcherExecutorService.shutdownNow();
-            LOGGER.info("Shutting down backup cleaning executor");
-            FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
-            LOGGER.info("Shutting down backup executor");
-            FTBBackups.backupExecutor.shutdownNow();
+            if(!FTBBackups.configWatcherExecutorService.isShutdown())
+            {
+                LOGGER.info("Shutting down the config watcher executor");
+                FTBBackups.configWatcherExecutorService.shutdownNow();
+            }
+            if(!FTBBackups.backupCleanerWatcherExecutorService.isShutdown())
+            {
+                LOGGER.info("Shutting down backup cleaning executor");
+                FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
+            }
+            if(!FTBBackups.backupExecutor.isShutdown())
+            {
+                LOGGER.info("Shutting down backup executor");
+                FTBBackups.backupExecutor.shutdownNow();
+            }
             BackupHandler.backupRunning.set(false);
-            LOGGER.info("Shutdown completed, FTB Backups has now finished shutting down");
+            LOGGER.info("=========Checking everything is shut down============");
+            LOGGER.info("Scheduler Shutdown:{}", scheduler.isShutdown());
+            LOGGER.info("Config watcher Shutdown:{}", FTBBackups.configWatcherExecutorService.isShutdown());
+            LOGGER.info("Cleaner watcher Shutdown:{}", FTBBackups.backupCleanerWatcherExecutorService.isShutdown());
+            LOGGER.info("Backup Executor Shutdown:{}", FTBBackups.backupExecutor.isShutdown());
+            LOGGER.info("========Shutdown completed, FTB Backups has now finished shutting down==========");
+
         } catch (Exception e)
         {
             e.printStackTrace();

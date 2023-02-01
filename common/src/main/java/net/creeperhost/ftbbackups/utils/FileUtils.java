@@ -2,11 +2,15 @@ package net.creeperhost.ftbbackups.utils;
 
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
+import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -27,7 +31,6 @@ public class FileUtils {
 
     public static void pack(Path zipFilePath, Path serverRoot, Iterable<Path> sourcePaths) throws IOException {
         Path p = Files.createFile(zipFilePath);
-        Map<String, Path> seenFiles = new HashMap<>();
         try (ZipOutputStream zs = new ZipOutputStream(Files.newOutputStream(p))) {
             for (Path sourcePath : sourcePaths) {
                 try (Stream<Path> pathStream = Files.walk(sourcePath)) {
@@ -51,12 +54,26 @@ public class FileUtils {
 
         ZipEntry zipEntry = new ZipEntry(rootDir.relativize(file).toString());
         zos.putNextEntry(zipEntry);
+        updateZipEntry(zipEntry, file);
         try
         {
             Files.copy(file, zos);
         }
         catch (Exception ignored){}
         zos.closeEntry();
+    }
+
+    public static void updateZipEntry(ZipEntry zipEntry, Path path)
+    {
+        try
+        {
+            BasicFileAttributes basicFileAttributes = Files.readAttributes(path, BasicFileAttributes.class);
+            zipEntry.setLastModifiedTime(basicFileAttributes.lastModifiedTime());
+            zipEntry.setCreationTime(basicFileAttributes.creationTime());
+        } catch (Exception e)
+        {
+            e.printStackTrace();
+        }
     }
 
     public static boolean isChildOf(Path path, Path parent) {
