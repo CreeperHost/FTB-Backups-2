@@ -41,7 +41,7 @@ public class FTBBackups {
         Config.init(configFile.toFile());
         CommandRegistrationEvent.EVENT.register(FTBBackups::onCommandRegisterEvent);
         LifecycleEvent.SERVER_STARTED.register(FTBBackups::serverStartedEvent);
-        LifecycleEvent.SERVER_STOPPED.register(FTBBackups::serverStoppedEvent);
+        LifecycleEvent.SERVER_STOPPED.register(instance -> killOutThreads());
         LifecycleEvent.SERVER_LEVEL_SAVE.register(FTBBackups::serverSaveEvent);
         Runtime.getRuntime().addShutdownHook(new Thread(FTBBackups::killOutThreads));
     }
@@ -81,10 +81,6 @@ public class FTBBackups {
         }
     }
 
-    private static void serverStoppedEvent(MinecraftServer minecraftServer) {
-        killOutThreads();
-    }
-
     public static void killOutThreads()
     {
         try
@@ -106,13 +102,32 @@ public class FTBBackups {
             if(scheduler != null && !scheduler.isShutdown())
             {
                 scheduler.clear();
+                LOGGER.info("Shutting down scheduler thread");
                 scheduler.shutdown(false);
             }
             Config.watcher.get().close();
-            FTBBackups.configWatcherExecutorService.shutdownNow();
-            FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
-            FTBBackups.backupExecutor.shutdownNow();
+            if(!FTBBackups.configWatcherExecutorService.isShutdown())
+            {
+                LOGGER.info("Shutting down the config watcher executor");
+                FTBBackups.configWatcherExecutorService.shutdownNow();
+            }
+            if(!FTBBackups.backupCleanerWatcherExecutorService.isShutdown())
+            {
+                LOGGER.info("Shutting down backup cleaning executor");
+                FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
+            }
+            if(!FTBBackups.backupExecutor.isShutdown())
+            {
+                LOGGER.info("Shutting down backup executor");
+                FTBBackups.backupExecutor.shutdownNow();
+            }
             BackupHandler.backupRunning.set(false);
+            LOGGER.info("=========Checking everything is shut down============");
+            LOGGER.info("Scheduler Shutdown:{}", scheduler.isShutdown());
+            LOGGER.info("Config watcher Shutdown:{}", FTBBackups.configWatcherExecutorService.isShutdown());
+            LOGGER.info("Cleaner watcher Shutdown:{}", FTBBackups.backupCleanerWatcherExecutorService.isShutdown());
+            LOGGER.info("Backup Executor Shutdown:{}", FTBBackups.backupExecutor.isShutdown());
+            LOGGER.info("========Shutdown completed, FTB Backups has now finished shutting down==========");
 
         } catch (Exception e)
         {

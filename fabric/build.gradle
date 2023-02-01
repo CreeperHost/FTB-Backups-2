@@ -28,9 +28,9 @@ dependencies {
     shadowCommon "blue.endless:jankson:1.2.1"
 
     implementation 'org.quartz-scheduler:quartz:2.0.2'
-    implementation rootProject.files('libs/BlockMap-cli-2.4.1.jar')
+    implementation rootProject.files('libs/BlockMap-cli-2.4.2.jar')
     shadowCommon "org.quartz-scheduler:quartz:2.0.2"
-    shadowCommon rootProject.files('libs/BlockMap-cli-2.4.1.jar')
+    shadowCommon rootProject.files('libs/BlockMap-cli-2.4.2.jar')
 }
 
 processResources {
