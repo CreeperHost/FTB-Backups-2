@@ -170,145 +170,151 @@ public class BackupHandler {
     public static void createBackup(MinecraftServer minecraftServer) {
         createBackup(minecraftServer, false, "automated");
     }
-    public static void createBackup(MinecraftServer minecraftServer, boolean protect, String name) {
-        if(FTBBackups.isShutdown) return;
-
-        if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty)
+    public static void createBackup(MinecraftServer minecraftServer, boolean protect, String name)
+    {
+        try
         {
-            FTBBackups.LOGGER.info("Skipping backup, no players have been online since last backup.");
-            return;
-        }
-        worldFolder = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
-        FTBBackups.LOGGER.info("Found world folder at " + worldFolder);
-        Calendar calendar = Calendar.getInstance();
-        String date = calendar.get(Calendar.YEAR) + "-" + (calendar.get(Calendar.MONTH) + 1) + "-" + calendar.get(Calendar.DATE);
-        String time = calendar.get(Calendar.HOUR_OF_DAY) + "-" + calendar.get(Calendar.MINUTE) + "-" + calendar.get(Calendar.SECOND);
-        String backupName = date + "_" + time + ".zip";
-        Path backupLocation = backupFolderPath.resolve(backupName);
+            if (FTBBackups.isShutdown) return;
 
-        if (canCreateBackup())
-        {
-            lastAutoBackup = System.currentTimeMillis();
+            if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty) {
+                FTBBackups.LOGGER.info("Skipping backup, no players have been online since last backup.");
+                return;
+            }
+            worldFolder = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
+            FTBBackups.LOGGER.info("Found world folder at " + worldFolder);
+            Calendar calendar = Calendar.getInstance();
+            String date = calendar.get(Calendar.YEAR) + "-" + (calendar.get(Calendar.MONTH) + 1) + "-" + calendar.get(Calendar.DATE);
+            String time = calendar.get(Calendar.HOUR_OF_DAY) + "-" + calendar.get(Calendar.MINUTE) + "-" + calendar.get(Calendar.SECOND);
+            String backupName = date + "_" + time + ".zip";
+            Path backupLocation = backupFolderPath.resolve(backupName);
 
-            backupRunning.set(true);
-            //Force save all player data before we start the backup
-            minecraftServer.submit(() -> minecraftServer.getPlayerList().saveAll());
-            //Force save all the chunk data
-            minecraftServer.submit(() -> minecraftServer.saveAllChunks(true, true, true));
-            //Set the worlds not to save while we are creating a backup
-            setNoSave(minecraftServer, true);
-            //Store the time we started the backup
-            AtomicLong startTime = new AtomicLong(System.nanoTime());
-            //Store the finishTime outside the thread for later use
-            AtomicLong finishTime = new AtomicLong();
+            if (canCreateBackup()) {
+                lastAutoBackup = System.currentTimeMillis();
 
-            //Start the backup process in its own thread
-            currentFuture = CompletableFuture.runAsync(() ->
-            {
-                try {
-                    //Warn all online players that the server is going to start creating a backup
-                    alertPlayers(minecraftServer, Component.translatable(FTBBackups.MOD_ID + ".backup.starting"));
-                    //Create the full path to this backup
-                    Path backupPath = backupFolderPath.resolve(backupName);
-                    //Create a zip of the world folder and store it in the /backup folder
-                    List<Path> backupPaths = new LinkedList<>();
-                    backupPaths.add(worldFolder);
-                    for (String p : Config.cached().additional_directories) {
-                        try {
-                            Path path = serverRoot.resolve(p);
-                            if (!FileUtils.isChildOf(path, serverRoot)) {
-                                FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is not a child of the server root directory.", p);
-                                continue;
+                backupRunning.set(true);
+                //Force save all player data before we start the backup
+                minecraftServer.submit(() -> minecraftServer.getPlayerList().saveAll());
+                //Force save all the chunk data
+                minecraftServer.submit(() -> minecraftServer.saveAllChunks(true, true, true));
+                //Set the worlds not to save while we are creating a backup
+                setNoSave(minecraftServer, true);
+                //Store the time we started the backup
+                AtomicLong startTime = new AtomicLong(System.nanoTime());
+                //Store the finishTime outside the thread for later use
+                AtomicLong finishTime = new AtomicLong();
+
+                //Start the backup process in its own thread
+                currentFuture = CompletableFuture.runAsync(() ->
+                {
+                    try {
+                        //Warn all online players that the server is going to start creating a backup
+                        alertPlayers(minecraftServer, Component.translatable(FTBBackups.MOD_ID + ".backup.starting"));
+                        //Create the full path to this backup
+                        Path backupPath = backupFolderPath.resolve(backupName);
+                        //Create a zip of the world folder and store it in the /backup folder
+                        List<Path> backupPaths = new LinkedList<>();
+                        backupPaths.add(worldFolder);
+                        for (String p : Config.cached().additional_directories) {
+                            try {
+                                Path path = serverRoot.resolve(p);
+                                if (!FileUtils.isChildOf(path, serverRoot)) {
+                                    FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is not a child of the server root directory.", p);
+                                    continue;
+                                }
+
+                                if (path.equals(worldFolder)) {
+                                    FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is the world folder.", p);
+                                    continue;
+                                }
+
+                                if (FileUtils.isChildOf(path, worldFolder)) {
+                                    FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is a child of the world folder.", p);
+                                    continue;
+                                }
+                                if (FileUtils.isChildOf(path, backupFolderPath)) {
+                                    FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is a child of the backups folder.", p);
+                                    continue;
+                                }
+
+                                if (!Files.isDirectory(path)) {
+                                    FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is not a directory..", p);
+                                    continue;
+                                }
+
+                                if (Files.exists(path)) {
+                                    backupPaths.add(path);
+                                }
+                            } catch (Exception err) {
+                                FTBBackups.LOGGER.error("Failed to add additional directory '{}' to the backup.", p, err);
                             }
-
-                            if (path.equals(worldFolder)) {
-                                FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is the world folder.", p);
-                                continue;
-                            }
-
-                            if (FileUtils.isChildOf(path, worldFolder)) {
-                                FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is a child of the world folder.", p);
-                                continue;
-                            }
-                            if (FileUtils.isChildOf(path, backupFolderPath)) {
-                                FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is a child of the backups folder.", p);
-                                continue;
-                            }
-
-                            if (!Files.isDirectory(path)) {
-                                FTBBackups.LOGGER.warn("Ignoring additional directory {}, as it is not a directory..", p);
-                                continue;
-                            }
-
-                            if (Files.exists(path)) {
-                                backupPaths.add(path);
-                            }
-                        } catch (Exception err) {
-                            FTBBackups.LOGGER.error("Failed to add additional directory '{}' to the backup.", p, err);
                         }
+                        backupPreview.set(createPreview(minecraftServer));
+                        FileUtils.pack(backupPath, serverRoot, backupPaths);
+                        //The backup did not fail
+                        backupFailed.set(false);
+                        BackupHandler.isDirty = false;
+                    } catch (Exception e) {
+                        //Set backup running state to false
+                        backupRunning.set(false);
+                        //The backup failed to store it
+                        backupFailed.set(true);
+                        //Set alerts to all players on the server
+                        alertPlayers(minecraftServer, Component.translatable(FTBBackups.MOD_ID + ".backup.failed"));
+                        //Log and print stacktraces
+                        FTBBackups.LOGGER.error("Failed to create backup");
+                        //Print the stacktrace
+                        e.printStackTrace();
                     }
-                    backupPreview.set(createPreview(minecraftServer));
-                    FileUtils.pack(backupPath, serverRoot, backupPaths);
-                    //The backup did not fail
-                    backupFailed.set(false);
-                    BackupHandler.isDirty = false;
-                } catch (Exception e) {
+                }, FTBBackups.backupExecutor).thenRun(() ->
+                {
+                    currentFuture = null;
+                    //If the backup failed then we don't need to do anything
+                    if (backupFailed.get()) {
+                        //This reset should not be needed but making sure anyway
+                        backupFailed.set(false);
+                        backupRunning.set(false);
+                        return;
+                    }
+
+                    finishTime.set(System.nanoTime());
+                    //Workout the time it took to create the backup
+                    long elapsedTime = finishTime.get() - startTime.get();
                     //Set backup running state to false
                     backupRunning.set(false);
-                    //The backup failed to store it
-                    backupFailed.set(true);
-                    //Set alerts to all players on the server
-                    alertPlayers(minecraftServer, Component.translatable(FTBBackups.MOD_ID + ".backup.failed"));
-                    //Log and print stacktraces
-                    FTBBackups.LOGGER.error("Failed to create backup");
-                    //Print the stacktrace
-                    e.printStackTrace();
-                }
-            }, FTBBackups.backupExecutor).thenRun(() ->
-            {
-                currentFuture = null;
-                //If the backup failed then we don't need to do anything
-                if (backupFailed.get()) {
-                    //This reset should not be needed but making sure anyway
-                    backupFailed.set(false);
+                    //Set world save state to false to allow saves again
+                    setNoSave(minecraftServer, false);
+                    //Alert players that backup has finished being created
+                    alertPlayers(minecraftServer, Component.translatable("Backup finished in " + format(elapsedTime) + (Config.cached().display_file_size ? " Size: " + FileUtils.getSizeString(backupLocation.toFile().length()) : "")));
+                    //Get the sha1 of the new backup .zip to store to the json file
+                    String sha1 = FileUtils.getSha1(backupLocation);
+                    //Do some math to figure out the ratio of compression
+                    float ratio = (float) backupLocation.toFile().length() / (float) FileUtils.getFolderSize(worldFolder.toFile());
+                    FTBBackups.LOGGER.info("Backup size " + FileUtils.getSizeString(backupLocation.toFile().length()) + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
+                    //Create the backup data entry to store to the json file
+
+                    Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1, backupPreview.get(), protect, name);
+                    addBackup(backup);
+
+                    updateJson();
+                    FTBBackups.LOGGER.info("New backup created at " + backupLocation + " size: " + FileUtils.getSizeString(backupLocation) + " Took: " + format(elapsedTime) + " Sha1: " + sha1);
+                });
+            } else {
+                //Create a new message for the failReason
+                if (!failReason.isEmpty()) {
                     backupRunning.set(false);
-                    return;
+                    String failMessage = "Unable to create backup, Reason: " + failReason;
+                    //Alert players of the fail status using the message
+                    alertPlayers(minecraftServer, Component.translatable(failMessage));
+                    //Log the failMessage
+                    FTBBackups.LOGGER.error(failMessage);
+                    //Reset the fail to avoid confusion
+                    failMessage = "";
                 }
-
-                finishTime.set(System.nanoTime());
-                //Workout the time it took to create the backup
-                long elapsedTime = finishTime.get() - startTime.get();
-                //Set backup running state to false
                 backupRunning.set(false);
-                //Set world save state to false to allow saves again
-                setNoSave(minecraftServer, false);
-                //Alert players that backup has finished being created
-                alertPlayers(minecraftServer, Component.translatable("Backup finished in " + format(elapsedTime) + (Config.cached().display_file_size ? " Size: " + FileUtils.getSizeString(backupLocation.toFile().length()) : "")));
-                //Get the sha1 of the new backup .zip to store to the json file
-                String sha1 = FileUtils.getSha1(backupLocation);
-                //Do some math to figure out the ratio of compression
-                float ratio = (float) backupLocation.toFile().length() / (float) FileUtils.getFolderSize(worldFolder.toFile());
-                FTBBackups.LOGGER.info("Backup size " + FileUtils.getSizeString(backupLocation.toFile().length()) + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
-                //Create the backup data entry to store to the json file
-
-                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1, backupPreview.get(), protect, name);
-                addBackup(backup);
-
-                updateJson();
-                FTBBackups.LOGGER.info("New backup created at " + backupLocation + " size: " + FileUtils.getSizeString(backupLocation) + " Took: " + format(elapsedTime) + " Sha1: " + sha1);
-            });
-        } else {
-            //Create a new message for the failReason
-            if (!failReason.isEmpty()) {
-                backupRunning.set(false);
-                String failMessage = "Unable to create backup, Reason: " + failReason;
-                //Alert players of the fail status using the message
-                alertPlayers(minecraftServer, Component.translatable(failMessage));
-                //Log the failMessage
-                FTBBackups.LOGGER.error(failMessage);
-                //Reset the fail to avoid confusion
-                failMessage = "";
             }
+        } catch (Exception e)
+        {
+            e.printStackTrace();
             backupRunning.set(false);
         }
     }
