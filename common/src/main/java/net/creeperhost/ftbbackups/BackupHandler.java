@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class BackupHandler {
 
-    private static Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
     private static Path serverRoot;
     private static Path backupFolderPath;
