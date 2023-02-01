@@ -43,7 +43,7 @@ public class FTBBackups {
         Config.init(configFile.toFile());
         CommandRegistrationEvent.EVENT.register((dispatcher, registry, selection) -> dispatcher.register(BackupCommand.register()));
         LifecycleEvent.SERVER_STARTED.register(FTBBackups::serverStartedEvent);
-        LifecycleEvent.SERVER_STOPPING.register(FTBBackups::serverStoppedEvent);
+        LifecycleEvent.SERVER_STOPPING.register(instance -> killOutThreads());
         LifecycleEvent.SERVER_LEVEL_SAVE.register(FTBBackups::serverSaveEvent);
         Runtime.getRuntime().addShutdownHook(new Thread(FTBBackups::killOutThreads));
     }
@@ -84,10 +84,6 @@ public class FTBBackups {
                 e.printStackTrace();
             }
         }
-    }
-
-    private static void serverStoppedEvent(MinecraftServer minecraftServer) {
-        killOutThreads();
     }
 
     public static void killOutThreads()
