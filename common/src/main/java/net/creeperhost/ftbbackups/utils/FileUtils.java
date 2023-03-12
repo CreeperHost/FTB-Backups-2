@@ -31,14 +31,29 @@ public class FileUtils {
 
     public static void pack(Path zipFilePath, Path serverRoot, Iterable<Path> sourcePaths) throws IOException {
         Path p = Files.createFile(zipFilePath);
-        try (ZipOutputStream zs = new ZipOutputStream(Files.newOutputStream(p))) {
-            for (Path sourcePath : sourcePaths) {
-                try (Stream<Path> pathStream = Files.walk(sourcePath)) {
-                    for (Path path : (Iterable<Path>) pathStream::iterator) {
-                        if (Files.isDirectory(path)) continue;
-
-                        packIntoZip(zs, serverRoot, path);
+        HashMap<Path,ZipOutputStream> archives = new HashMap<Path, ZipOutputStream>();
+        archives.put(zipFilePath.getRoot(), new ZipOutputStream(Files.newOutputStream(p)));
+        for (Path sourcePath : sourcePaths) {
+            try (Stream<Path> pathStream = Files.walk(sourcePath)) {
+                for (Path path : (Iterable<Path>) pathStream::iterator) {
+                    if (Files.isDirectory(path)) continue;
+                    Path root = path.getRoot();
+                    // Keep the root of files on the same device at the server root
+                    if (root == serverRoot.getRoot()) {
+                        root = serverRoot;
                     }
+                    // Find output stream for given root
+                    ZipOutputStream zs = archives.get(path.getRoot());
+                    // If new root, create new output stream
+                    if (zs == null) {
+                        // New output streams should have the root name appended to filename
+                        String fileName = zipFilePath.getFileName().toString();
+                        String newFileName = fileName.substring(0, fileName.lastIndexOf(".")) + "-" + path.getRoot().toString().replace(":", "").replace("/", "").replace("\\", "") + fileName.substring(fileName.lastIndexOf("."));
+                        Path newPath = Files.createFile(zipFilePath.getParent().resolve(newFileName));
+                        zs = new ZipOutputStream(Files.newOutputStream(newPath));
+                        archives.put(path.getRoot(), zs);
+                    }
+                    packIntoZip(zs, root, path);
                 }
             }
         }
@@ -60,6 +75,7 @@ public class FileUtils {
             Files.copy(file, zos);
         }
         catch (Exception ignored){}
+            
         zos.closeEntry();
     }
 
