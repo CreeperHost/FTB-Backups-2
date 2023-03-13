@@ -57,6 +57,11 @@ public class FileUtils {
                 }
             }
         }
+        for (ZipOutputStream zos : archives.values()) {
+            zos.flush();
+            zos.finish();
+            zos.close();
+        }
     }
 
     private static void packIntoZip(ZipOutputStream zos, Path rootDir, Path file) throws IOException {
