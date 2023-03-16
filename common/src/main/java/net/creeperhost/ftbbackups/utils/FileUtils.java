@@ -2,17 +2,15 @@ package net.creeperhost.ftbbackups.utils;
 
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
-import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.FileTime;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -29,10 +27,12 @@ public class FileUtils {
     public static final double GB_D = MB_D * 1024D;
     public static final double TB_D = GB_D * 1024D;
 
-    public static void pack(Path zipFilePath, Path serverRoot, Iterable<Path> sourcePaths) throws IOException {
+    public static List<Path> pack(Path zipFilePath, Path serverRoot, Iterable<Path> sourcePaths) throws IOException {
         Path p = Files.createFile(zipFilePath);
         HashMap<Path,ZipOutputStream> archives = new HashMap<Path, ZipOutputStream>();
+        ArrayList<Path> archivePaths = new ArrayList<Path>();
         archives.put(zipFilePath.getRoot(), new ZipOutputStream(Files.newOutputStream(p)));
+        archivePaths.add(zipFilePath);
         for (Path sourcePath : sourcePaths) {
             try (Stream<Path> pathStream = Files.walk(sourcePath)) {
                 for (Path path : (Iterable<Path>) pathStream::iterator) {
@@ -47,11 +47,12 @@ public class FileUtils {
                     // If new root, create new output stream
                     if (zs == null) {
                         // New output streams should have the root name appended to filename
-                        String fileName = zipFilePath.getFileName().toString();
-                        String newFileName = fileName.substring(0, fileName.lastIndexOf(".")) + "-" + path.getRoot().toString().replace(":", "").replace("/", "").replace("\\", "") + fileName.substring(fileName.lastIndexOf("."));
-                        Path newPath = Files.createFile(zipFilePath.getParent().resolve(newFileName));
-                        zs = new ZipOutputStream(Files.newOutputStream(newPath));
+                        String baseArchiveName = zipFilePath.getFileName().toString();
+                        String newArchiveName = baseArchiveName.substring(0, baseArchiveName.lastIndexOf(".")) + "-" + path.getRoot().toString().replace(":", "").replace("/", "").replace("\\", "") + baseArchiveName.substring(baseArchiveName.lastIndexOf("."));
+                        Path newArchivePath = Files.createFile(zipFilePath.getParent().resolve(newArchiveName));
+                        zs = new ZipOutputStream(Files.newOutputStream(newArchivePath));
                         archives.put(path.getRoot(), zs);
+                        archivePaths.add(newArchivePath);
                     }
                     packIntoZip(zs, root, path);
                 }
@@ -62,6 +63,7 @@ public class FileUtils {
             zos.finish();
             zos.close();
         }
+        return archivePaths;
     }
 
     private static void packIntoZip(ZipOutputStream zos, Path rootDir, Path file) throws IOException {
@@ -192,6 +194,14 @@ public class FileUtils {
 
     public static String getSizeString(Path path) {
         return getSizeString(getSize(path.toFile()));
+    }
+
+    public static String getSizeString(List<Path> paths) {
+        long size = 0;
+        for (Path path : paths) {
+            size += getSize(path.toFile());
+        }
+        return getSizeString(size);
     }
 
     public static String getSizeString(File file) {

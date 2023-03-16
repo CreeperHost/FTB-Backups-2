@@ -186,7 +186,7 @@ public class BackupHandler {
             String date = calendar.get(Calendar.YEAR) + "-" + (calendar.get(Calendar.MONTH) + 1) + "-" + calendar.get(Calendar.DATE);
             String time = calendar.get(Calendar.HOUR_OF_DAY) + "-" + calendar.get(Calendar.MINUTE) + "-" + calendar.get(Calendar.SECOND);
             String backupName = date + "_" + time + ".zip";
-            Path backupLocation = backupFolderPath.resolve(backupName);
+            List<Path> backupArchives = new LinkedList<Path>();
 
             if (canCreateBackup()) {
                 lastAutoBackup = System.currentTimeMillis();
@@ -212,7 +212,7 @@ public class BackupHandler {
                         //Create the full path to this backup
                         Path backupPath = backupFolderPath.resolve(backupName);
                         //Create a zip of the world folder and store it in the /backup folder
-                        List<Path> backupPaths = new LinkedList<>();
+                        List<Path> backupPaths = new ArrayList<>();
                         backupPaths.add(worldFolder);
                         for (String p : Config.cached().additional_directories) {
                             try {
@@ -249,7 +249,7 @@ public class BackupHandler {
                             }
                         }
                         backupPreview.set(createPreview(minecraftServer));
-                        FileUtils.pack(backupPath, serverRoot, backupPaths);
+                        backupArchives.addAll(FileUtils.pack(backupPath, serverRoot, backupPaths));
                         //The backup did not fail
                         backupFailed.set(false);
                         BackupHandler.isDirty = false;
@@ -284,19 +284,27 @@ public class BackupHandler {
                     //Set world save state to false to allow saves again
                     setNoSave(minecraftServer, false);
                     //Alert players that backup has finished being created
-                    alertPlayers(minecraftServer, Component.translatable("Backup finished in " + format(elapsedTime) + (Config.cached().display_file_size ? " Size: " + FileUtils.getSizeString(backupLocation.toFile().length()) : "")));
-                    //Get the sha1 of the new backup .zip to store to the json file
-                    String sha1 = FileUtils.getSha1(backupLocation);
+                    String backupSize = FileUtils.getSizeString(backupArchives);
+                    alertPlayers(minecraftServer, Component.translatable("Backup finished in " + format(elapsedTime) + (Config.cached().display_file_size ? " Size: " + backupSize : "")));
+
+                    // Calculate SHA1s
+                    long archiveSize = 0;
+                    List<String> sha1s = new ArrayList<>();
+                    List<String> backupArchiveFilenames = new ArrayList<>();
+                    for (int i = 0; i < backupArchives.size(); ++i) {
+                        //Get the sha1 of the new backup .zip to store to the json file
+                        sha1s.add(i, FileUtils.getSha1(backupArchives.get(i)));
+                        archiveSize += backupArchives.get(i).toFile().length();
+                        backupArchiveFilenames.add(i, backupArchives.get(i).toString());
+                    }
                     //Do some math to figure out the ratio of compression
-                    float ratio = (float) backupLocation.toFile().length() / (float) FileUtils.getFolderSize(worldFolder.toFile());
-                    FTBBackups.LOGGER.info("Backup size " + FileUtils.getSizeString(backupLocation.toFile().length()) + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
+                    float ratio = (float) archiveSize / (float) FileUtils.getFolderSize(worldFolder.toFile());
+                    FTBBackups.LOGGER.info("Backup size " + backupSize + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
                     //Create the backup data entry to store to the json file
-
-                    Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1, backupPreview.get(), protect, name);
+                    Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupArchiveFilenames, archiveSize, ratio, sha1s, backupPreview.get(), protect, name);
                     addBackup(backup);
-
                     updateJson();
-                    FTBBackups.LOGGER.info("New backup created at " + backupLocation + " size: " + FileUtils.getSizeString(backupLocation) + " Took: " + format(elapsedTime) + " Sha1: " + sha1);
+                    FTBBackups.LOGGER.info("New backup created at " + backupArchives + " size: " + backupSize + " Took: " + format(elapsedTime) + " Sha1: " + sha1s);
                 });
             } else {
                 //Create a new message for the failReason
@@ -377,11 +385,13 @@ public class BackupHandler {
                 int backupsNeedRemoving = (backups.get().unprotectedSize() - Config.cached().max_backups);
                 if (backupsNeedRemoving > 0 && getOldestBackup() != null) {
                     for (int i = 0; i < backupsNeedRemoving; i++) {
-                        Path backupFile = Path.of(getOldestBackup().getBackupLocation());
-                        if (Files.exists(backupFile)) {
-                            boolean removed = Files.deleteIfExists(backupFile);
-                            String log = removed ? "Removed old backup " + backupFile.getFileName() : " Failed to remove backup " + backupFile.getFileName();
-                            FTBBackups.LOGGER.info(log);
+                        for (String backupLocation : getOldestBackup().getBackupLocation()) {
+                            Path backupFile = Path.of(backupLocation);
+                            if (Files.exists(backupFile)) {
+                                boolean removed = Files.deleteIfExists(backupFile);
+                                String log = removed ? "Removed old backup " + backupFile.getFileName() : " Failed to remove backup " + backupFile.getFileName();
+                                FTBBackups.LOGGER.info(log);
+                            }
                         }
                     }
                     verifyOldBackups();
@@ -495,9 +505,11 @@ public class BackupHandler {
         for (Backup backup : backupsCopy) {
             FTBBackups.LOGGER.debug("Verifying backup " + backup.getBackupLocation());
 
-            if (!Files.exists(Path.of(backup.getBackupLocation()))) {
-                removeBackup(backup);
-                FTBBackups.LOGGER.info("File missing, removing from backups " + backup.getBackupLocation());
+            for (String backupLocation : backup.getBackupLocation()) {
+                if (!Files.exists(Path.of(backupLocation))) {
+                    removeBackup(backup);
+                    FTBBackups.LOGGER.info("File missing, removing from backups " + backup.getBackupLocation());
+                }
             }
         }
         updateJson();

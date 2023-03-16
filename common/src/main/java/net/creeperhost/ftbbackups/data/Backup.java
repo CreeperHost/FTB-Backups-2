@@ -1,17 +1,21 @@
 package net.creeperhost.ftbbackups.data;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+
 public class Backup {
     private String worldName = "";
     private long createTime = 0;
-    private String backupLocation = "";
+    private List<String> backupLocation = new ArrayList<>();
     private long size = 0;
     private float ratio = 0;
-    private String sha1 = "";
+    private List<String> sha1 = new ArrayList<>();
     private String preview = "";
     private boolean snapshot = false;
     private String backupName = "";
 
-    public Backup(String worldName, long createTime, String backupLocation, long size, float ratio, String sha1, String preview, boolean snapshot, String backupName) {
+    public Backup(String worldName, long createTime, List<String> backupLocation, long size, float ratio, List<String> sha1, String preview, boolean snapshot, String backupName) {
         this.worldName = worldName;
         this.createTime = createTime;
         this.backupLocation = backupLocation;
@@ -31,7 +35,7 @@ public class Backup {
         return size;
     }
 
-    public String getSha1() {
+    public List<String> getSha1() {
         return sha1;
     }
 
@@ -45,7 +49,7 @@ public class Backup {
         return ratio;
     }
 
-    public String getBackupLocation() {
+    public List<String> getBackupLocation() {
         return backupLocation;
     }
 
