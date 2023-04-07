@@ -192,10 +192,8 @@ public class BackupHandler {
                 lastAutoBackup = System.currentTimeMillis();
 
                 backupRunning.set(true);
-                //Force save all player data before we start the backup
-                minecraftServer.submit(() -> minecraftServer.getPlayerList().saveAll());
-                //Force save all the chunk data
-                minecraftServer.submit(() -> minecraftServer.saveAllChunks(true, true, true));
+                //Force save all the chunk and player data
+                CompletableFuture<?> saveOp = minecraftServer.submit(() -> minecraftServer.saveEverything(true, true, true));
                 //Set the worlds not to save while we are creating a backup
                 setNoSave(minecraftServer, true);
                 //Store the time we started the backup
@@ -207,6 +205,12 @@ public class BackupHandler {
                 currentFuture = CompletableFuture.runAsync(() ->
                 {
                     try {
+                        //Ensure that save operation we just scheduled to complete before we continue.
+                        while (!saveOp.isDone() || minecraftServer.isCurrentlySaving()) {
+                            FTBBackups.LOGGER.info("Waiting for world save to complete.");
+                            Thread.sleep(3000);
+                        }
+
                         //Warn all online players that the server is going to start creating a backup
                         alertPlayers(minecraftServer, Component.translatable(FTBBackups.MOD_ID + ".backup.starting"));
                         //Create the full path to this backup
@@ -422,13 +426,19 @@ public class BackupHandler {
         FTBBackups.LOGGER.info("Writing to file " + defaultBackupLocation.resolve("backups.json"));
         try (FileOutputStream fileOutputStream = new FileOutputStream(defaultBackupLocation.resolve("backups.json").toFile())) {
             IOUtils.write(json, fileOutputStream, Charset.defaultCharset());
-            fileOutputStream.close();
         } catch (Throwable throwable) {
             throwable.printStackTrace();
         }
     }
 
     public static boolean canCreateBackup() {
+        File worldFile = worldFolder.toFile();
+        if (!worldFile.exists() || !worldFile.isDirectory()) {
+            FTBBackups.LOGGER.info("World folder does not exist or is not a directory: {}", worldFile.getAbsolutePath());
+            failReason = "Invalid world folder";
+            return false;
+        }
+
         if (backupFolderPath == null) {
             failReason = "backup folder path is null";
             return false;
@@ -457,7 +467,7 @@ public class BackupHandler {
         }
 
         long free = backupFolderPath.toFile().getFreeSpace();
-        long currentWorldSize = FileUtils.getFolderSize(worldFolder.toFile());
+        long currentWorldSize = FileUtils.getFolderSize(worldFile);
         for (String p : Config.cached().additional_directories) {
             try {
                 Path path = worldFolder.getParent().resolve(p);
