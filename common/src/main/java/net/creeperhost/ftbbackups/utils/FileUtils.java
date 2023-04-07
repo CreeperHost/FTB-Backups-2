@@ -2,6 +2,7 @@ package net.creeperhost.ftbbackups.utils;
 
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
+import net.creeperhost.ftbbackups.FTBBackups;
 import org.apache.commons.io.IOUtils;
 
 import java.io.File;
@@ -97,6 +98,14 @@ public class FileUtils {
     public static long getFolderSize(File folder) {
         long length = 0;
         File[] files = folder.listFiles();
+        if (files == null) {
+            FTBBackups.LOGGER.warn("Attempt to get folder size for invalid folder: {}", folder.getAbsolutePath());
+            if (folder.isFile()) {
+                return folder.length();
+            } else {
+                return 0;
+            }
+        }
 
         int count = files.length;
 

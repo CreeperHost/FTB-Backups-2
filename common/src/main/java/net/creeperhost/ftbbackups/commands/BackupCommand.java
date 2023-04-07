@@ -27,32 +27,21 @@ public class BackupCommand {
     public static LiteralArgumentBuilder<CommandSourceStack> register() {
         return Commands.literal("backup")
                 .requires(cs -> cs.hasPermission(hasPerm(cs.getServer())))
-                .then(
-                        Commands.argument("command", StringArgumentType.string()).suggests(SUGGESTIONS).then(
-                                Commands.argument("name", StringArgumentType.string())
-                                        .executes(cs -> execute(cs, StringArgumentType.getString(cs, "command"), StringArgumentType.getString(cs, "name")))
-                        )
-                )
-                .then(
-                        Commands.argument("command", StringArgumentType.string()).suggests(SUGGESTIONS)
-                                        .executes(cs -> execute(cs, StringArgumentType.getString(cs, "command"), "")
+                .then(Commands.argument("command", StringArgumentType.string()).suggests(SUGGESTIONS)
+                        .executes(cs -> execute(cs, StringArgumentType.getString(cs, "command"), ""))
+                        .then(Commands.argument("name", StringArgumentType.string())
+                                .executes(cs -> execute(cs, StringArgumentType.getString(cs, "command"), StringArgumentType.getString(cs, "name")))
                         )
                 );
     }
 
-    public static int hasPerm(MinecraftServer server)
-    {
-        if(server.isDedicatedServer() || server instanceof IntegratedServer integratedServer && integratedServer.isPublished()) return Config.cached().command_permission_level;
+    public static int hasPerm(MinecraftServer server) {
+        if (server.isDedicatedServer() || server instanceof IntegratedServer integratedServer && integratedServer.isPublished()) return Config.cached().command_permission_level;
         return 0;
     }
 
     private static int execute(CommandContext<CommandSourceStack> cs, String command, String name) {
-        boolean isProtected = false;
-        switch(command.toLowerCase(Locale.ROOT)) {
-            case "snapshot":
-                isProtected = true;
-                break;
-        }
+        boolean isProtected = command.toLowerCase(Locale.ROOT).equals("snapshot");
         if (Config.cached().manual_backups_time == 0) {
             BackupHandler.isDirty = true;
             BackupHandler.createBackup(cs.getSource().getServer(), isProtected, name);
@@ -61,7 +50,7 @@ public class BackupCommand {
             long lastBackupWithConfig = lastManualBackupTime + configTimeFromMinutes;
 
             if (System.currentTimeMillis() > lastBackupWithConfig) {
-                lastManualBackupTime = System.currentTimeMillis() ;
+                lastManualBackupTime = System.currentTimeMillis();
                 BackupHandler.createBackup(cs.getSource().getServer(), isProtected, name);
             } else {
                 cs.getSource().sendFailure(Component.literal("Unable to create backup, Last backup was taken less than " + Config.cached().max_backups + " Minutes ago"));
