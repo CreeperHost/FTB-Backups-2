@@ -205,7 +205,7 @@ public class BackupHandler {
                 currentFuture = CompletableFuture.runAsync(() ->
                 {
                     try {
-                        //Ensure that save operation we just scheduled to complete before we continue.
+                        //Ensure that save operation we just scheduled has completed before we continue.
                         while (!saveOp.isDone() || minecraftServer.isCurrentlySaving()) {
                             FTBBackups.LOGGER.info("Waiting for world save to complete.");
                             Thread.sleep(3000);
@@ -265,13 +265,13 @@ public class BackupHandler {
                         //Set alerts to all players on the server
                         alertPlayers(minecraftServer, Component.translatable(FTBBackups.MOD_ID + ".backup.failed"));
                         //Log and print stacktraces
-                        FTBBackups.LOGGER.error("Failed to create backup");
-                        //Print the stacktrace
-                        e.printStackTrace();
+                        FTBBackups.LOGGER.error("Failed to create backup", e);
                     }
                 }, FTBBackups.backupExecutor).thenRun(() ->
                 {
                     currentFuture = null;
+                    //Set world save state to false to allow saves again
+                    setNoSave(minecraftServer, false);
                     //If the backup failed then we don't need to do anything
                     if (backupFailed.get()) {
                         //This reset should not be needed but making sure anyway
@@ -285,8 +285,6 @@ public class BackupHandler {
                     long elapsedTime = finishTime.get() - startTime.get();
                     //Set backup running state to false
                     backupRunning.set(false);
-                    //Set world save state to false to allow saves again
-                    setNoSave(minecraftServer, false);
                     //Alert players that backup has finished being created
                     alertPlayers(minecraftServer, Component.translatable("Backup finished in " + format(elapsedTime) + (Config.cached().display_file_size ? " Size: " + FileUtils.getSizeString(backupLocation.toFile().length()) : "")));
                     //Get the sha1 of the new backup .zip to store to the json file
