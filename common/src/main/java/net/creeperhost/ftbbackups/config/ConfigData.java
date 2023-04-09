@@ -41,4 +41,10 @@ public class ConfigData {
 
     @Comment("Specify the backup format. Valid options are ZIP and DIRECTORY")
     public Format backup_format = Format.ZIP;
+
+    @Comment("Minimum free disk space in MB. If a backup's creation would leave less than this amount of disk space remaining, the backup will be aborted.")
+    public long minimum_free_space = 0;
+
+    @Comment("If the previous backup failed due to lack of space, the oldest backup will be deleted to free space.")
+    public boolean free_space_if_needed = false;
 }

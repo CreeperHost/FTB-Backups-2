@@ -45,6 +45,7 @@ public class BackupHandler {
     public static final AtomicBoolean backupRunning = new AtomicBoolean(false);
     private static final AtomicBoolean backupFailed = new AtomicBoolean(false);
     private static AtomicReference<String> backupPreview = new AtomicReference<>("");
+    private static boolean isSpaceConstrained = false;
     public static boolean isDirty = false;
 
     public static AtomicReference<Backups> backups = new AtomicReference<>(new Backups());
@@ -391,22 +392,28 @@ public class BackupHandler {
     public static void clean() {
         //Don't run clean if there is a backup already running
         try {
-            if(FTBBackups.isShutdown) return;
+            if (FTBBackups.isShutdown) return;
             if (backupRunning.get()) return;
+            int backupsNeedRemoving = 0;
             if (backups.get().unprotectedSize() > Config.cached().max_backups) {
                 FTBBackups.LOGGER.info("More backups than " + Config.cached().max_backups + " found, Removing oldest backup");
-                int backupsNeedRemoving = (backups.get().unprotectedSize() - Config.cached().max_backups);
-                if (backupsNeedRemoving > 0 && getOldestBackup() != null) {
-                    for (int i = 0; i < backupsNeedRemoving; i++) {
-                        Path backupFile = Path.of(getOldestBackup().getBackupLocation());
-                        if (Files.exists(backupFile)) {
-                            boolean removed = Files.deleteIfExists(backupFile);
-                            String log = removed ? "Removed old backup " + backupFile.getFileName() : " Failed to remove backup " + backupFile.getFileName();
-                            FTBBackups.LOGGER.info(log);
-                        }
+                backupsNeedRemoving = (backups.get().unprotectedSize() - Config.cached().max_backups);
+            } else if (isSpaceConstrained && Config.cached().free_space_if_needed) {
+                FTBBackups.LOGGER.info("Insufficient space to create new backups, Removing oldest backup");
+                isSpaceConstrained = false;
+                backupsNeedRemoving = 1;
+            }
+
+            if (backupsNeedRemoving > 0 && getOldestBackup() != null) {
+                for (int i = 0; i < backupsNeedRemoving; i++) {
+                    Path backupFile = Path.of(getOldestBackup().getBackupLocation());
+                    if (Files.exists(backupFile)) {
+                        boolean removed = Files.deleteIfExists(backupFile);
+                        String log = removed ? "Removed old backup " + backupFile.getFileName() : " Failed to remove backup " + backupFile.getFileName();
+                        FTBBackups.LOGGER.info(log);
                     }
-                    verifyOldBackups();
                 }
+                verifyOldBackups();
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -483,7 +490,8 @@ public class BackupHandler {
             return false;
         }
 
-        long free = backupFolderPath.toFile().getFreeSpace();
+        long minFreeSpace = Config.cached().minimum_free_space * 1000000L;
+        long free = backupFolderPath.toFile().getFreeSpace() - minFreeSpace;
         long currentWorldSize = FileUtils.getFolderSize(worldFile);
         for (String p : Config.cached().additional_directories) {
             try {
@@ -495,9 +503,11 @@ public class BackupHandler {
         }
 
         if (getLatestBackup() == null) {
-            FTBBackups.LOGGER.info("Current world size: " + FileUtils.getSizeString(currentWorldSize) + " Current free space: " + FileUtils.getSizeString(free));
+            //This should be logged as an error because no new backups will be created until this is resolved.
+            FTBBackups.LOGGER.error("Current world size: " + FileUtils.getSizeString(currentWorldSize) + " Current Available space: " + FileUtils.getSizeString(free));
             if (currentWorldSize > free) {
                 failReason = "not enough free space on device";
+                isSpaceConstrained = true;
                 return false;
             }
         } else {
@@ -505,10 +515,11 @@ public class BackupHandler {
             float ratio = getLatestBackup().getRatio();
             long expectedSize = (int) (Math.ceil(currentWorldSize * ratio) / 100) * 105L;
 
-            FTBBackups.LOGGER.info("Last backup size: " + FileUtils.getSizeString(latestBackupSize) + " Current world size: " + FileUtils.getSizeString(currentWorldSize)
-                    + " Current free space: " + FileUtils.getSizeString(free) + " ExpectedSize " + FileUtils.getSizeString(expectedSize));
+            FTBBackups.LOGGER.error("Last backup size: " + FileUtils.getSizeString(latestBackupSize) + " Current world size: " + FileUtils.getSizeString(currentWorldSize)
+                    + " Current Available space: " + FileUtils.getSizeString(free) + " ExpectedSize " + FileUtils.getSizeString(expectedSize));
             if (expectedSize > free) {
                 failReason = "not enough free space on device";
+                isSpaceConstrained = true;
                 return false;
             }
         }
