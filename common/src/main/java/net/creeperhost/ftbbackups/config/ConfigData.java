@@ -38,4 +38,7 @@ public class ConfigData {
 
     @Comment("backup location")
     public String backup_location = ".";
+
+    @Comment("Specify the backup format. Valid options are ZIP and DIRECTORY")
+    public Format backup_format = Format.ZIP;
 }

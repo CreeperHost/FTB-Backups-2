@@ -1,19 +1,15 @@
 package net.creeperhost.ftbbackups.utils;
 
 import com.google.common.hash.HashCode;
+import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import net.creeperhost.ftbbackups.FTBBackups;
-import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.FileTime;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -30,7 +26,23 @@ public class FileUtils {
     public static final double GB_D = MB_D * 1024D;
     public static final double TB_D = GB_D * 1024D;
 
-    public static void pack(Path zipFilePath, Path serverRoot, Iterable<Path> sourcePaths) throws IOException {
+    public static void copy(Path outputDirectory, Path serverRoot, Iterable<Path> sourcePaths) throws IOException {
+        Path dir = Files.createDirectory(outputDirectory);
+
+        for (Path sourcePath : sourcePaths) {
+            try (Stream<Path> pathStream = Files.walk(sourcePath)) {
+                for (Path path : (Iterable<Path>) pathStream::iterator) {
+                    if (Files.isDirectory(path)) continue;
+                    Path relFile = serverRoot.relativize(path);
+                    Path destFile = dir.resolve(relFile);
+                    Files.createDirectories(destFile.getParent());
+                    Files.copy(path, destFile);
+                }
+            }
+        }
+    }
+
+    public static void zip(Path zipFilePath, Path serverRoot, Iterable<Path> sourcePaths) throws IOException {
         Path p = Files.createFile(zipFilePath);
         try (ZipOutputStream zs = new ZipOutputStream(Files.newOutputStream(p))) {
             for (Path sourcePath : sourcePaths) {
@@ -49,30 +61,25 @@ public class FileUtils {
         // Don't pack session.lock files
         if (file.getFileName().toString().equals("session.lock")) return;
         // Don't try and copy a file that does not exist
-        if(!file.toFile().exists()) return;
+        if (!file.toFile().exists()) return;
         // Ensure files are readable
         if (!Files.isReadable(file)) return;
 
         ZipEntry zipEntry = new ZipEntry(rootDir.relativize(file).toString());
         zos.putNextEntry(zipEntry);
         updateZipEntry(zipEntry, file);
-        try
-        {
+        try {
             Files.copy(file, zos);
-        }
-        catch (Exception ignored){}
+        } catch (Exception ignored) { }
         zos.closeEntry();
     }
 
-    public static void updateZipEntry(ZipEntry zipEntry, Path path)
-    {
-        try
-        {
+    public static void updateZipEntry(ZipEntry zipEntry, Path path) {
+        try {
             BasicFileAttributes basicFileAttributes = Files.readAttributes(path, BasicFileAttributes.class);
             zipEntry.setLastModifiedTime(basicFileAttributes.lastModifiedTime());
             zipEntry.setCreationTime(basicFileAttributes.creationTime());
-        } catch (Exception e)
-        {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -84,10 +91,28 @@ public class FileUtils {
         return isChildOf(path.getParent(), parent);
     }
 
-    public static String getSha1(Path path) {
+    public static String getFileSha1(Path path) {
         try {
             HashCode sha1HashCode = com.google.common.io.Files.asByteSource(path.toFile()).hash(Hashing.sha1());
             return sha1HashCode.toString();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return "";
+    }
+
+    public static String getDirectorySha1(Path directory) {
+        try {
+            Hasher hasher = Hashing.sha1().newHasher();
+            try (Stream<Path> pathStream = Files.walk(directory)) {
+                for (Path path : (Iterable<Path>) pathStream::iterator) {
+                    if (Files.isDirectory(path)) continue;
+                    HashCode hash = com.google.common.io.Files.asByteSource(path.toFile()).hash(Hashing.sha1());
+                    hasher.putBytes(hash.asBytes());
+                }
+            }
+            return hasher.hash().toString();
         } catch (IOException e) {
             e.printStackTrace();
         }

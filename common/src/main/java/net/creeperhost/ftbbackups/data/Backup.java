@@ -1,17 +1,20 @@
 package net.creeperhost.ftbbackups.data;
 
-public class Backup {
-    private String worldName = "";
-    private long createTime = 0;
-    private String backupLocation = "";
-    private long size = 0;
-    private float ratio = 0;
-    private String sha1 = "";
-    private String preview = "";
-    private boolean snapshot = false;
-    private String backupName = "";
+import net.creeperhost.ftbbackups.config.Format;
 
-    public Backup(String worldName, long createTime, String backupLocation, long size, float ratio, String sha1, String preview, boolean snapshot, String backupName) {
+public class Backup {
+    private String worldName;
+    private long createTime;
+    private String backupLocation;
+    private long size;
+    private float ratio;
+    private String sha1;
+    private String preview;
+    private boolean snapshot;
+    private String backupName;
+    private Format backupFormat;
+
+    public Backup(String worldName, long createTime, String backupLocation, long size, float ratio, String sha1, String preview, boolean snapshot, String backupName, Format backupFormat) {
         this.worldName = worldName;
         this.createTime = createTime;
         this.backupLocation = backupLocation;
@@ -21,6 +24,7 @@ public class Backup {
         this.preview = preview;
         this.snapshot = snapshot;
         this.backupName = backupName;
+        this.backupFormat = backupFormat;
     }
 
     public String getWorldName() {
@@ -52,5 +56,9 @@ public class Backup {
     public String getBackupName()
     {
         return backupName;
+    }
+
+    public Format getBackupFormat() {
+        return backupFormat;
     }
 }

@@ -10,6 +10,7 @@ import de.piegames.blockmap.repack.org.joml.Vector2ic;
 import de.piegames.blockmap.world.Region;
 import de.piegames.blockmap.world.RegionFolder;
 import net.creeperhost.ftbbackups.config.Config;
+import net.creeperhost.ftbbackups.config.Format;
 import net.creeperhost.ftbbackups.data.Backup;
 import net.creeperhost.ftbbackups.data.Backups;
 import net.creeperhost.ftbbackups.utils.FileUtils;
@@ -24,7 +25,6 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.imageio.ImageIO;
 import java.io.*;
-import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -170,10 +170,9 @@ public class BackupHandler {
     public static void createBackup(MinecraftServer minecraftServer) {
         createBackup(minecraftServer, false, "automated");
     }
-    public static void createBackup(MinecraftServer minecraftServer, boolean protect, String name)
-    {
-        try
-        {
+
+    public static void createBackup(MinecraftServer minecraftServer, boolean protect, String name) {
+        try {
             if (FTBBackups.isShutdown) return;
 
             if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty) {
@@ -182,11 +181,9 @@ public class BackupHandler {
             }
             worldFolder = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
             FTBBackups.LOGGER.info("Found world folder at " + worldFolder);
-            Calendar calendar = Calendar.getInstance();
-            String date = calendar.get(Calendar.YEAR) + "-" + (calendar.get(Calendar.MONTH) + 1) + "-" + calendar.get(Calendar.DATE);
-            String time = calendar.get(Calendar.HOUR_OF_DAY) + "-" + calendar.get(Calendar.MINUTE) + "-" + calendar.get(Calendar.SECOND);
-            String backupName = date + "_" + time + ".zip";
+            String backupName = genBackupFileName();
             Path backupLocation = backupFolderPath.resolve(backupName);
+            Format format = Config.cached().backup_format;
 
             if (canCreateBackup()) {
                 lastAutoBackup = System.currentTimeMillis();
@@ -206,9 +203,9 @@ public class BackupHandler {
                 {
                     try {
                         //Ensure that save operation we just scheduled has completed before we continue.
-                        while (!saveOp.isDone() || minecraftServer.isCurrentlySaving()) {
+                        if (!saveOp.isDone()) {
                             FTBBackups.LOGGER.info("Waiting for world save to complete.");
-                            Thread.sleep(3000);
+                            saveOp.get(30, TimeUnit.SECONDS);
                         }
 
                         //Warn all online players that the server is going to start creating a backup
@@ -253,7 +250,11 @@ public class BackupHandler {
                             }
                         }
                         backupPreview.set(createPreview(minecraftServer));
-                        FileUtils.pack(backupPath, serverRoot, backupPaths);
+                        if (format == Format.ZIP){
+                            FileUtils.zip(backupPath, serverRoot, backupPaths);
+                        } else {
+                            FileUtils.copy(backupPath, serverRoot, backupPaths);
+                        }
                         //The backup did not fail
                         backupFailed.set(false);
                         BackupHandler.isDirty = false;
@@ -287,14 +288,22 @@ public class BackupHandler {
                     backupRunning.set(false);
                     //Alert players that backup has finished being created
                     alertPlayers(minecraftServer, Component.translatable("Backup finished in " + format(elapsedTime) + (Config.cached().display_file_size ? " Size: " + FileUtils.getSizeString(backupLocation.toFile().length()) : "")));
-                    //Get the sha1 of the new backup .zip to store to the json file
-                    String sha1 = FileUtils.getSha1(backupLocation);
-                    //Do some math to figure out the ratio of compression
-                    float ratio = (float) backupLocation.toFile().length() / (float) FileUtils.getFolderSize(worldFolder.toFile());
+
+                    String sha1;
+                    float ratio = 1;
+                    if (format == Format.ZIP) {
+                        //Get the sha1 of the new backup .zip to store to the json file
+                        sha1 = FileUtils.getFileSha1(backupLocation);
+                        //Do some math to figure out the ratio of compression
+                        ratio = (float) backupLocation.toFile().length() / (float) FileUtils.getFolderSize(worldFolder.toFile());
+                    } else {
+                        sha1 = FileUtils.getDirectorySha1(backupLocation);
+                    }
+
                     FTBBackups.LOGGER.info("Backup size " + FileUtils.getSizeString(backupLocation.toFile().length()) + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
                     //Create the backup data entry to store to the json file
 
-                    Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1, backupPreview.get(), protect, name);
+                    Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1, backupPreview.get(), protect, name, format);
                     addBackup(backup);
 
                     updateJson();
@@ -314,11 +323,21 @@ public class BackupHandler {
                 }
                 backupRunning.set(false);
             }
-        } catch (Exception e)
-        {
+        } catch (Exception e) {
             e.printStackTrace();
             backupRunning.set(false);
         }
+    }
+
+    private static String genBackupFileName() {
+        Calendar calendar = Calendar.getInstance();
+        String date = calendar.get(Calendar.YEAR) + "-" + (calendar.get(Calendar.MONTH) + 1) + "-" + calendar.get(Calendar.DATE);
+        String time = calendar.get(Calendar.HOUR_OF_DAY) + "-" + calendar.get(Calendar.MINUTE) + "-" + calendar.get(Calendar.SECOND);
+        String backupName = date + "_" + time;
+        if (Config.cached().backup_format == Format.ZIP) {
+            backupName += ".zip";
+        }
+        return backupName;
     }
 
     public static void addBackup(Backup backup) {
