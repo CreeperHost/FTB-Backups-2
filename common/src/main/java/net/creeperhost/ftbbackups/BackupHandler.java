@@ -199,6 +199,11 @@ public class BackupHandler {
                 //Store the finishTime outside the thread for later use
                 AtomicLong finishTime = new AtomicLong();
 
+                //Add the backup entry first so in the event the backup is interrupted we are not left with an orphaned partial backup that will never get cleared automatically.
+                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), 0, "", backupPreview.get(), protect, name, format, false);
+                addBackup(backup);
+                updateJson();
+
                 //Start the backup process in its own thread
                 currentFuture = CompletableFuture.runAsync(() ->
                 {
@@ -302,10 +307,8 @@ public class BackupHandler {
                     }
 
                     FTBBackups.LOGGER.info("Backup size " + FileUtils.getSizeString(backupLocation.toFile().length()) + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
-                    //Create the backup data entry to store to the json file
-
-                    Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1, backupPreview.get(), protect, name, format);
-                    addBackup(backup);
+                    //Update backup entry data entry and mark it as complete.
+                    backup.setRatio(ratio).setSha1(sha1).setComplete();
 
                     updateJson();
                     FTBBackups.LOGGER.info("New backup created at " + backupLocation + " size: " + FileUtils.getSizeString(backupLocation) + " Took: " + format(elapsedTime) + " Sha1: " + sha1);

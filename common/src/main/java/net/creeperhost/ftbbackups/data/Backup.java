@@ -13,8 +13,15 @@ public class Backup {
     private boolean snapshot;
     private String backupName;
     private Format backupFormat;
+    private boolean complete;
 
-    public Backup(String worldName, long createTime, String backupLocation, long size, float ratio, String sha1, String preview, boolean snapshot, String backupName, Format backupFormat) {
+    public Backup() {
+        //Default to true if field does not exist in json.
+        //Ensures compatibility with previous versions that did not have this field.
+        complete = true;
+    }
+
+    public Backup(String worldName, long createTime, String backupLocation, long size, float ratio, String sha1, String preview, boolean snapshot, String backupName, Format backupFormat, boolean complete) {
         this.worldName = worldName;
         this.createTime = createTime;
         this.backupLocation = backupLocation;
@@ -25,6 +32,7 @@ public class Backup {
         this.snapshot = snapshot;
         this.backupName = backupName;
         this.backupFormat = backupFormat;
+        this.complete = complete;
     }
 
     public String getWorldName() {
@@ -60,5 +68,20 @@ public class Backup {
 
     public Format getBackupFormat() {
         return backupFormat;
+    }
+
+    public Backup setRatio(float ratio) {
+        this.ratio = ratio;
+        return this;
+    }
+
+    public Backup setSha1(String sha1) {
+        this.sha1 = sha1;
+        return this;
+    }
+
+    public Backup setComplete() {
+        complete = true;
+        return this;
     }
 }
