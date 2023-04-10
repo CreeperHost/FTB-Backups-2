@@ -4,6 +4,7 @@ import com.google.common.hash.HashCode;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import net.creeperhost.ftbbackups.FTBBackups;
+import net.creeperhost.ftbbackups.config.Config;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,6 +35,7 @@ public class FileUtils {
                 for (Path path : (Iterable<Path>) pathStream::iterator) {
                     if (Files.isDirectory(path)) continue;
                     Path relFile = serverRoot.relativize(path);
+                    if (excludeFile(relFile)) continue;
                     Path destFile = dir.resolve(relFile);
                     Files.createDirectories(destFile.getParent());
                     Files.copy(path, destFile);
@@ -49,7 +51,8 @@ public class FileUtils {
                 try (Stream<Path> pathStream = Files.walk(sourcePath)) {
                     for (Path path : (Iterable<Path>) pathStream::iterator) {
                         if (Files.isDirectory(path)) continue;
-
+                        Path relFile = serverRoot.relativize(path);
+                        if (excludeFile(relFile)) continue;
                         packIntoZip(zs, serverRoot, path);
                     }
                 }
@@ -227,5 +230,56 @@ public class FileUtils {
             return length;
         }
         return 0L;
+    }
+
+    public static boolean excludeFile(Path relPath) {
+        for (String exclude : Config.cached().excluded) {
+            exclude = exclude.replaceAll("\\\\", "/");
+
+            boolean sw = exclude.startsWith("*");
+            if (sw) exclude = exclude.substring(1);
+
+            boolean ew = exclude.endsWith("*");
+            if (ew) exclude = exclude.substring(0, exclude.length() - 1);
+
+            boolean wildCard = sw || ew;
+
+            boolean path = exclude.contains("/");
+            //Relative paths do not have a leading /
+            if (exclude.startsWith("/") && !sw) exclude = exclude.substring(1);
+
+            //Is File Exclusion (e.g. fileName.txt)
+            if (!path && !wildCard) {
+                if (relPath.getFileName().toString().equals(exclude)) {
+                    return true;
+                }
+            }
+            //Is Path Exclusion (e.g. world/region/fileName.txt)
+            else if (path && !wildCard) {
+                if (relPath.toString().equals(exclude)) {
+                    return true;
+                }
+            }
+            // (e.g. *directory/file*)
+            else if (sw && ew) {
+                if (relPath.toString().contains(exclude)) {
+                    return true;
+                }
+            }
+            // (e.g. *directory/fileName.txt)
+            else if (sw) {
+                if (relPath.toString().endsWith(exclude)) {
+                    return true;
+                }
+            }
+            // (e.g. directory/file*)
+            else {
+                if (relPath.toString().startsWith(exclude)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

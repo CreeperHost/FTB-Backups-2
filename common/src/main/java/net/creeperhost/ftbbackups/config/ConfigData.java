@@ -47,4 +47,15 @@ public class ConfigData {
 
     @Comment("If the previous backup failed due to lack of space, the oldest backup will be deleted to free space.")
     public boolean free_space_if_needed = false;
+
+    @Comment("""
+            Specify files or folders to be excluded.
+            Can specify a file name, path relative to server directory or wildcard file path
+            Examples:
+            fileName.txt
+            relative/file/path.txt
+            relative/path/starts/with*
+            *path/ends/with.txt
+            *path/contains*""")
+    public List<String> excluded = new ArrayList<>();
 }

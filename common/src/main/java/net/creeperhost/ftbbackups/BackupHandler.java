@@ -406,17 +406,22 @@ public class BackupHandler {
 
             if (backupsNeedRemoving > 0 && getOldestBackup() != null) {
                 for (int i = 0; i < backupsNeedRemoving; i++) {
-                    Path backupFile = Path.of(getOldestBackup().getBackupLocation());
+                    Backup oldest = getOldestBackup();
+                    Path backupFile = Path.of(oldest.getBackupLocation());
                     if (Files.exists(backupFile)) {
-                        boolean removed = Files.deleteIfExists(backupFile);
-                        String log = removed ? "Removed old backup " + backupFile.getFileName() : " Failed to remove backup " + backupFile.getFileName();
+                        String log = "Removed old backup " + backupFile.getFileName();
+                        if (oldest.getBackupFormat() == Format.DIRECTORY) {
+                            org.apache.commons.io.FileUtils.deleteDirectory(backupFile.toFile());
+                        } else {
+                            if (!Files.deleteIfExists(backupFile)) log = "Failed to remove backup " + backupFile.getFileName();
+                        }
                         FTBBackups.LOGGER.info(log);
                     }
                 }
                 verifyOldBackups();
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            FTBBackups.LOGGER.info("An error occurred while clearing old backups.", e);
         }
     }
 
