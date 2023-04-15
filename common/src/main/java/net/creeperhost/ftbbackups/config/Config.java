@@ -37,7 +37,8 @@ public class Config {
                 }
                 loaded = true;
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            FTBBackups.LOGGER.error("En error occurred while reading config file, Loading defaults", e);
             data.set(new ConfigData());
         }
     }

@@ -10,10 +10,12 @@ import de.piegames.blockmap.repack.org.joml.Vector2ic;
 import de.piegames.blockmap.world.Region;
 import de.piegames.blockmap.world.RegionFolder;
 import net.creeperhost.ftbbackups.config.Config;
+import net.creeperhost.ftbbackups.config.Format;
+import net.creeperhost.ftbbackups.config.RetentionMode;
 import net.creeperhost.ftbbackups.data.Backup;
 import net.creeperhost.ftbbackups.data.Backups;
 import net.creeperhost.ftbbackups.utils.FileUtils;
-import net.minecraft.Util;
+import net.creeperhost.ftbbackups.utils.TieredBackupTest;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.network.chat.TranslatableComponent;
@@ -27,8 +29,8 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.imageio.ImageIO;
 import java.io.*;
-import java.net.URI;
 import java.nio.charset.Charset;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -37,10 +39,11 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 public class BackupHandler {
 
-    private static Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
     private static Path serverRoot;
     private static Path backupFolderPath;
@@ -48,6 +51,7 @@ public class BackupHandler {
     public static final AtomicBoolean backupRunning = new AtomicBoolean(false);
     private static final AtomicBoolean backupFailed = new AtomicBoolean(false);
     private static AtomicReference<String> backupPreview = new AtomicReference<>("");
+    private static boolean isSpaceConstrained = false;
     public static boolean isDirty = false;
 
     public static AtomicReference<Backups> backups = new AtomicReference<>(new Backups());
@@ -58,36 +62,25 @@ public class BackupHandler {
     public static Path defaultBackupLocation;
 
     public static void init(MinecraftServer minecraftServer) {
-        //Check to see if a player is online before we backup as the worldSaveEvent might now have fired yet depeding on user settings
-        FTBBackups.serverSaveEvent(minecraftServer.overworld());
         serverRoot = minecraftServer.getServerDirectory().toPath().normalize().toAbsolutePath();
         defaultBackupLocation = serverRoot.resolve("backups");
 
-        if(!Config.cached().backup_location.equalsIgnoreCase("."))
-        {
-            try
-            {
+        if (!Config.cached().backup_location.equalsIgnoreCase(".")) {
+            try {
                 Path configPath = Path.of(Config.cached().backup_location);
-                if(Files.exists(configPath))
-                {
-                    FTBBackups.LOGGER.info("Using configured backups directory at {}" , configPath.toAbsolutePath());
+                if (Files.exists(configPath)) {
+                    FTBBackups.LOGGER.info("Using configured backups directory at {}", configPath.toAbsolutePath());
                     backupFolderPath = configPath;
-                }
-                else
-                {
+                } else {
                     FTBBackups.LOGGER.error(configPath.toAbsolutePath() + " does not exist, please create the directory before continuing");
                     backupFolderPath = defaultBackupLocation;
                 }
-            }
-            catch (Exception e)
-            {
+            } catch (Exception e) {
                 FTBBackups.LOGGER.error("Unable to find backup folder from config {} using default {}", Config.cached().backup_location, defaultBackupLocation.toAbsolutePath());
                 e.printStackTrace();
                 backupFolderPath = defaultBackupLocation;
             }
-        }
-        else
-        {
+        } else {
             backupFolderPath = defaultBackupLocation;
         }
         createBackupFolder(defaultBackupLocation);
@@ -95,20 +88,20 @@ public class BackupHandler {
 
         loadJson();
         FTBBackups.LOGGER.info("Starting backup cleaning thread");
-        if(FTBBackups.backupExecutor == null || FTBBackups.backupExecutor.isShutdown())
-        {
-            FTBBackups.backupExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups backup thread %d").setDaemon(true).build());
+        if (FTBBackups.backupExecutor == null || FTBBackups.backupExecutor.isShutdown()) {
+            FTBBackups.backupExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups backup thread %d").build());
         }
-        if(FTBBackups.backupCleanerWatcherExecutorService.isShutdown())
-        {
-            FTBBackups.backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder().setNameFormat("FTB Backups scheduled executor %d").build());
+        if (FTBBackups.backupCleanerWatcherExecutorService.isShutdown()) {
+            FTBBackups.backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder()
+                    .setNameFormat("FTB Backups scheduled executor %d")
+                    .setUncaughtExceptionHandler((t, e) -> FTBBackups.LOGGER.error("An error occurred running cleaner task", e))
+                    .build());
         }
         FTBBackups.backupCleanerWatcherExecutorService.scheduleAtFixedRate(BackupHandler::clean, 0, 30, TimeUnit.SECONDS);
     }
 
     public static String createPreview(MinecraftServer minecraftServer) {
-        try
-        {
+        try {
             MinecraftDimension dim = MinecraftDimension.OVERWORLD;
             RenderSettings settings = new RenderSettings();
             RegionRenderer renderer = new RegionRenderer(settings);
@@ -126,22 +119,18 @@ public class BackupHandler {
                 });
                 Files.deleteIfExists(previewPath);
                 Files.createDirectories(previewPath);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) { }
             Vector2ic lastPos = null;
             long lastTimestamp = 0;
-            for (Vector2ic p : w.listRegions())
-            {
-                try
-                {
+            for (Vector2ic p : w.listRegions()) {
+                try {
                     long thisTimestamp = w.getTimestamp(p);
                     //TODO: Implement size checking too, later.
-                    if (thisTimestamp > lastTimestamp)
-                    {
+                    if (thisTimestamp > lastTimestamp) {
                         lastPos = p;
                         lastTimestamp = thisTimestamp;
                     }
-                } catch (Exception e)
-                {
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
@@ -159,7 +148,7 @@ public class BackupHandler {
                     }
                 });
                 Files.deleteIfExists(previewPath);
-            } catch(Exception ignored) {}
+            } catch (Exception ignored) { }
             baos.close();
             return "data:image/png;base64, " + Base64.getEncoder().encodeToString(image);
         } catch (Exception ex) {
@@ -175,38 +164,28 @@ public class BackupHandler {
     public static void createBackup(MinecraftServer minecraftServer) {
         createBackup(minecraftServer, false, "automated");
     }
-    public static void createBackup(MinecraftServer minecraftServer, boolean protect, String name)
-    {
+
+    public static void createBackup(MinecraftServer minecraftServer, boolean protect, String name) {
         try {
-            if (minecraftServer == null) return;
-            if (minecraftServer.overworld() == null) return;
             if (FTBBackups.isShutdown) return;
+
             if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty) {
                 FTBBackups.LOGGER.info("Skipping backup, no players have been online since last backup.");
                 return;
             }
             worldFolder = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
             FTBBackups.LOGGER.info("Found world folder at " + worldFolder);
-            Calendar calendar = Calendar.getInstance();
-            String date = calendar.get(Calendar.YEAR) + "-" + (calendar.get(Calendar.MONTH) + 1) + "-" + calendar.get(Calendar.DATE);
-            String time = calendar.get(Calendar.HOUR_OF_DAY) + "-" + calendar.get(Calendar.MINUTE) + "-" + calendar.get(Calendar.SECOND);
-            String backupName = date + "_" + time + ".zip";
+            String backupName = TieredBackupTest.getBackupName();
+
             Path backupLocation = backupFolderPath.resolve(backupName);
+            Format format = Config.cached().backup_format;
 
             if (canCreateBackup()) {
-                lastAutoBackup = System.currentTimeMillis();
-                if (backupRunning == null) return;
+                lastAutoBackup = TieredBackupTest.getBackupTime();
 
                 backupRunning.set(true);
-                //Force save all player data before we start the backup
-                minecraftServer.submit(() -> {
-                    if (minecraftServer == null) return;
-                    if (minecraftServer.getPlayerList() == null) return;
-                    if (minecraftServer.getPlayerList().getPlayerCount() == 0) return;
-                    minecraftServer.getPlayerList().saveAll();
-                });
-                //Force save all the chunk data
-                minecraftServer.submit(() -> minecraftServer.saveAllChunks(true, true, true));
+                //Force save all the chunk and player data
+                CompletableFuture<?> saveOp = minecraftServer.submit(() -> minecraftServer.saveEverything(true, true, true));
                 //Set the worlds not to save while we are creating a backup
                 setNoSave(minecraftServer, true);
                 //Store the time we started the backup
@@ -214,10 +193,21 @@ public class BackupHandler {
                 //Store the finishTime outside the thread for later use
                 AtomicLong finishTime = new AtomicLong();
 
+                //Add the backup entry first so in the event the backup is interrupted we are not left with an orphaned partial backup that will never get cleared automatically.
+                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), lastAutoBackup, backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), 0, "", backupPreview.get(), protect, name, format, false);
+                addBackup(backup);
+                updateJson();
+
                 //Start the backup process in its own thread
                 currentFuture = CompletableFuture.runAsync(() ->
                 {
                     try {
+                        //Ensure that save operation we just scheduled has completed before we continue.
+                        if (!saveOp.isDone()) {
+                            FTBBackups.LOGGER.info("Waiting for world save to complete.");
+                            saveOp.get(30, TimeUnit.SECONDS);
+                        }
+
                         //Warn all online players that the server is going to start creating a backup
                         alertPlayers(minecraftServer, new TranslatableComponent(FTBBackups.MOD_ID + ".backup.starting"));
                         //Create the full path to this backup
@@ -225,6 +215,38 @@ public class BackupHandler {
                         //Create a zip of the world folder and store it in the /backup folder
                         List<Path> backupPaths = new LinkedList<>();
                         backupPaths.add(worldFolder);
+
+                        try (Stream<Path> pathStream = Files.walk(serverRoot)) {
+                            for (Path path : (Iterable<Path>) pathStream::iterator) {
+                                if (Files.isDirectory(path)) continue;
+                                Path relFile = serverRoot.relativize(path);
+                                if (!FileUtils.matchesAny(relFile, Config.cached().additional_files)) continue;
+
+                                try {
+                                    if (!FileUtils.isChildOf(path, serverRoot)) {
+                                        FTBBackups.LOGGER.warn("Ignoring additional file {}, as it is not a child of the server root directory.", relFile);
+                                        continue;
+                                    }
+
+                                    if (FileUtils.isChildOf(path, worldFolder)) {
+                                        FTBBackups.LOGGER.warn("Ignoring additional file {}, as it is a child of the world folder.", relFile);
+                                        continue;
+                                    }
+
+                                    if (FileUtils.isChildOf(path, backupFolderPath)) {
+                                        FTBBackups.LOGGER.warn("Ignoring additional file {}, as it is a child of the backups folder.", relFile);
+                                        continue;
+                                    }
+
+                                    if (Files.exists(path)) {
+                                        backupPaths.add(path);
+                                    }
+                                } catch (Exception err) {
+                                    FTBBackups.LOGGER.error("Failed to add additional file '{}' to the backup.", relFile, err);
+                                }
+                            }
+                        }
+
                         for (String p : Config.cached().additional_directories) {
                             try {
                                 Path path = serverRoot.resolve(p);
@@ -260,7 +282,11 @@ public class BackupHandler {
                             }
                         }
                         backupPreview.set(createPreview(minecraftServer));
-                        FileUtils.pack(backupPath, serverRoot, backupPaths);
+                        if (format == Format.ZIP) {
+                            FileUtils.zip(backupPath, serverRoot, backupPaths);
+                        } else {
+                            FileUtils.copy(backupPath, serverRoot, backupPaths);
+                        }
                         //The backup did not fail
                         backupFailed.set(false);
                         BackupHandler.isDirty = false;
@@ -272,15 +298,16 @@ public class BackupHandler {
                         //Set alerts to all players on the server
                         alertPlayers(minecraftServer, new TranslatableComponent(FTBBackups.MOD_ID + ".backup.failed"));
                         //Log and print stacktraces
-                        FTBBackups.LOGGER.error("Failed to create backup");
-                        //Set isDirty back to false on error
-                        BackupHandler.isDirty = false;
-                        //Print the stacktrace
-                        e.printStackTrace();
+                        FTBBackups.LOGGER.error("Failed to create backup", e);
+                        if (e instanceof FileAlreadyExistsException) {
+                            TieredBackupTest.testBackupCount++;
+                        }
                     }
                 }, FTBBackups.backupExecutor).thenRun(() ->
                 {
                     currentFuture = null;
+                    //Set world save state to false to allow saves again
+                    setNoSave(minecraftServer, false);
                     //If the backup failed then we don't need to do anything
                     if (backupFailed.get()) {
                         //This reset should not be needed but making sure anyway
@@ -294,22 +321,28 @@ public class BackupHandler {
                     long elapsedTime = finishTime.get() - startTime.get();
                     //Set backup running state to false
                     backupRunning.set(false);
-                    //Set world save state to false to allow saves again
-                    setNoSave(minecraftServer, false);
                     //Alert players that backup has finished being created
                     alertPlayers(minecraftServer, new TextComponent("Backup finished in " + format(elapsedTime) + (Config.cached().display_file_size ? " Size: " + FileUtils.getSizeString(backupLocation.toFile().length()) : "")));
-                    //Get the sha1 of the new backup .zip to store to the json file
-                    String sha1 = FileUtils.getSha1(backupLocation);
-                    //Do some math to figure out the ratio of compression
-                    float ratio = (float) backupLocation.toFile().length() / (float) FileUtils.getFolderSize(worldFolder.toFile());
-                    FTBBackups.LOGGER.info("Backup size " + FileUtils.getSizeString(backupLocation.toFile().length()) + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
-                    //Create the backup data entry to store to the json file
 
-                    Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), System.currentTimeMillis(), backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), ratio, sha1, backupPreview.get(), protect, name);
-                    addBackup(backup);
+                    String sha1;
+                    float ratio = 1;
+                    if (format == Format.ZIP) {
+                        //Get the sha1 of the new backup .zip to store to the json file
+                        sha1 = FileUtils.getFileSha1(backupLocation);
+                        //Do some math to figure out the ratio of compression
+                        ratio = (float) backupLocation.toFile().length() / (float) FileUtils.getFolderSize(worldFolder.toFile());
+                    } else {
+                        sha1 = FileUtils.getDirectorySha1(backupLocation);
+                    }
+
+                    FTBBackups.LOGGER.info("Backup size " + FileUtils.getSizeString(backupLocation.toFile().length()) + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
+                    //Update backup entry data entry and mark it as complete.
+                    backup.setRatio(ratio).setSha1(sha1).setComplete();
 
                     updateJson();
                     FTBBackups.LOGGER.info("New backup created at " + backupLocation + " size: " + FileUtils.getSizeString(backupLocation) + " Took: " + format(elapsedTime) + " Sha1: " + sha1);
+
+                    TieredBackupTest.testBackupCount++;
                 });
             } else {
                 //Create a new message for the failReason
@@ -320,15 +353,26 @@ public class BackupHandler {
                     alertPlayers(minecraftServer, new TranslatableComponent(failMessage));
                     //Log the failMessage
                     FTBBackups.LOGGER.error(failMessage);
+                    //Reset the fail to avoid confusion
                     failMessage = "";
                 }
                 backupRunning.set(false);
             }
-        } catch (Exception e)
-        {
+        } catch (Exception e) {
             e.printStackTrace();
             backupRunning.set(false);
         }
+    }
+
+    public static String genBackupFileName() {
+        Calendar calendar = Calendar.getInstance();
+        String date = calendar.get(Calendar.YEAR) + "-" + (calendar.get(Calendar.MONTH) + 1) + "-" + calendar.get(Calendar.DATE);
+        String time = calendar.get(Calendar.HOUR_OF_DAY) + "-" + calendar.get(Calendar.MINUTE) + "-" + calendar.get(Calendar.SECOND);
+        String backupName = date + "_" + time;
+        if (Config.cached().backup_format == Format.ZIP) {
+            backupName += ".zip";
+        }
+        return backupName;
     }
 
     public static void addBackup(Backup backup) {
@@ -366,11 +410,10 @@ public class BackupHandler {
 
     @Nullable
     public static Backup getOldestBackup() {
-        if (backups == null) return null;
         if (backups.get().isEmpty()) return null;
         Backup currentOldest = null;
         for (Backup backup : backups.get().getBackups()) {
-            if(backup.isProtected()) continue;
+            if (backup.isProtected()) continue;
             if (currentOldest == null) currentOldest = backup;
             if (backup.getCreateTime() < currentOldest.getCreateTime()) {
                 currentOldest = backup;
@@ -381,26 +424,144 @@ public class BackupHandler {
 
     public static void clean() {
         //Don't run clean if there is a backup already running
+        if (FTBBackups.isShutdown) return;
+        if (backupRunning.get()) return;
+        if (backups == null) return;
+
+        if (Config.cached().retention_mode == RetentionMode.MAX_BACKUPS) {
+            cleanMax();
+        } else {
+            cleanTiered();
+        }
+    }
+
+    private static void cleanMax() {
+        int backupsNeedRemoving = 0;
+        if (backups.get().unprotectedSize() > Config.cached().max_backups) {
+            FTBBackups.LOGGER.info("More backups than " + Config.cached().max_backups + " found, Removing oldest backup");
+            backupsNeedRemoving = (backups.get().unprotectedSize() - Config.cached().max_backups);
+        } else if (isSpaceConstrained && Config.cached().free_space_if_needed) {
+            FTBBackups.LOGGER.info("Insufficient space to create new backups, Removing oldest backup");
+            isSpaceConstrained = false;
+            backupsNeedRemoving = 1;
+        }
+        if (backupsNeedRemoving <= 0 || getOldestBackup() == null) return;
+
+        for (int i = 0; i < backupsNeedRemoving; i++) {
+            Backup oldest = getOldestBackup();
+            deleteBackup(oldest);
+        }
+        verifyOldBackups();
+    }
+
+    private static void cleanTiered() {
+        List<Backup> backups = new ArrayList<>(BackupHandler.backups.get().getBackups());
+        //Don't touch protected backups
+        backups.removeIf(Backup::isProtected);
+
+        //Sort from newest to oldest
+        backups.sort(Comparator.comparingLong(Backup::getCreateTime).reversed());
+
+        if (backups.size() <= Config.cached().keep_latest) {
+            return;
+        }
+
+        Map<Backup, String> backupsToKeep = new HashMap<>();
+
+        //Keep the latest x backups
+        if (Config.cached().keep_latest > 0) {
+            for (Backup backup : backups.subList(0, Config.cached().keep_latest)) {
+                backupsToKeep.put(backup, "Latest");
+            }
+        }
+
+        computeRetained(backups, backupsToKeep, Config.cached().keep_hourly, Calendar.HOUR_OF_DAY);
+        computeRetained(backups, backupsToKeep, Config.cached().keep_daily, Calendar.DAY_OF_YEAR);
+        computeRetained(backups, backupsToKeep, Config.cached().keep_weekly, Calendar.WEEK_OF_YEAR);
+        computeRetained(backups, backupsToKeep, Config.cached().keep_monthly, Calendar.MONTH);
+
+        backups.removeAll(backupsToKeep.keySet());
+
+        for (Backup backup : backups) {
+            if (!TieredBackupTest.shouldRemoveBackup(backup)) {
+                continue;
+            }
+            deleteBackup(backup);
+        }
+        verifyOldBackups();
+
+        if (!backups.isEmpty()) {
+            backupsToKeep.forEach((backup, rule) -> FTBBackups.LOGGER.info("Keeping Backup: {}, Rule: {}", new Date(backup.getCreateTime()), rule));
+        }
+
+        TieredBackupTest.cycleComplete();
+    }
+
+    private static void computeRetained(List<Backup> backups, Map<Backup, String> retained, int keepNumber, int timeUnit) {
+        String name = timeUnit == Calendar.HOUR_OF_DAY ? "Hour" : timeUnit == Calendar.DAY_OF_YEAR ? "Day" : timeUnit == Calendar.WEEK_OF_YEAR ? "Week" : "Month";
         try {
-            if(FTBBackups.isShutdown) return;
-            if (backupRunning.get()) return;
-            if (backups.get().unprotectedSize() > Config.cached().max_backups) {
-                FTBBackups.LOGGER.info("More backups than " + Config.cached().max_backups + " found, Removing oldest backup");
-                int backupsNeedRemoving = (backups.get().unprotectedSize() - Config.cached().max_backups);
-                if (backupsNeedRemoving > 0 && getOldestBackup() != null) {
-                    for (int i = 0; i < backupsNeedRemoving; i++) {
-                        Path backupFile = Path.of(getOldestBackup().getBackupLocation());
-                        if (Files.exists(backupFile)) {
-                            boolean removed = Files.deleteIfExists(backupFile);
-                            String log = removed ? "Removed old backup " + backupFile.getFileName() : " Failed to remove backup " + backupFile.getFileName();
-                            FTBBackups.LOGGER.info(log);
-                        }
+            Calendar now = Calendar.getInstance();
+            now.set(Calendar.MILLISECOND, 0);
+            now.set(Calendar.SECOND, 0);
+            now.set(Calendar.MINUTE, 0);
+            if (timeUnit == Calendar.DAY_OF_YEAR) {
+                now.set(Calendar.HOUR_OF_DAY, 0);
+            }
+            if (timeUnit == Calendar.WEEK_OF_YEAR) {
+                now.set(Calendar.HOUR_OF_DAY, 0);
+                now.set(Calendar.DAY_OF_WEEK, 0);
+            }
+            if (timeUnit == Calendar.MONTH) {
+                now.set(Calendar.HOUR_OF_DAY, 0);
+                now.set(Calendar.DAY_OF_MONTH, 0);
+            }
+
+            for (int i = 0; i < keepNumber; i++) {
+                Calendar past = (Calendar) now.clone();
+                past.add(timeUnit, -i);
+                long end = past.getTimeInMillis();
+                if (i == 0) {
+                    //All time units lower than the current interval are zeroed out to ensure each retain window always starts at the same time.
+                    //But this leaves a gap at i=0 where backups that should be kept can "fall through" and get deleted.
+                    //This closes that gap.
+                    end = Calendar.getInstance().getTimeInMillis();
+                }
+                past.add(timeUnit, -1);
+                long start = past.getTimeInMillis();
+
+                Backup latest = null;
+                for (Backup backup : backups) {
+                    long time = backup.getCreateTime();
+                    //Always keep latest within time period.
+                    if (time >= start && time < end && (latest == null || time > latest.getCreateTime())) {
+                        latest = backup;
                     }
-                    verifyOldBackups();
+                }
+                if (latest != null) {
+                    TieredBackupTest.willKeep(name, latest);
+                    String info = (retained.containsKey(latest) ? retained.get(latest) + "&" : "") + name;
+                    retained.put(latest, info);
                 }
             }
+        } catch (Throwable e) {
+            FTBBackups.LOGGER.error("An error occurred computing which backups to retain", e);
+        }
+    }
+
+    private static void deleteBackup(Backup backup) {
+        try {
+            Path backupFile = Path.of(backup.getBackupLocation());
+            if (Files.exists(backupFile)) {
+                String log = "Removed old backup " + backupFile.getFileName();
+                if (backup.getBackupFormat() == Format.DIRECTORY) {
+                    org.apache.commons.io.FileUtils.deleteDirectory(backupFile.toFile());
+                } else {
+                    if (!Files.deleteIfExists(backupFile)) log = "Failed to remove backup " + backupFile.getFileName();
+                }
+                FTBBackups.LOGGER.info(log);
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            FTBBackups.LOGGER.info("An error occurred while deleting backup.", e);
         }
     }
 
@@ -434,13 +595,19 @@ public class BackupHandler {
         FTBBackups.LOGGER.info("Writing to file " + defaultBackupLocation.resolve("backups.json"));
         try (FileOutputStream fileOutputStream = new FileOutputStream(defaultBackupLocation.resolve("backups.json").toFile())) {
             IOUtils.write(json, fileOutputStream, Charset.defaultCharset());
-            fileOutputStream.close();
         } catch (Throwable throwable) {
             throwable.printStackTrace();
         }
     }
 
     public static boolean canCreateBackup() {
+        File worldFile = worldFolder.toFile();
+        if (!worldFile.exists() || !worldFile.isDirectory()) {
+            FTBBackups.LOGGER.info("World folder does not exist or is not a directory: {}", worldFile.getAbsolutePath());
+            failReason = "Invalid world folder";
+            return false;
+        }
+
         if (backupFolderPath == null) {
             failReason = "backup folder path is null";
             return false;
@@ -455,33 +622,38 @@ public class BackupHandler {
             return false;
         }
         if (lastAutoBackup != 0 && Config.cached().manual_backups_time != 0) {
-            if (System.currentTimeMillis()< (lastAutoBackup + 60000L)) {
+            if (System.currentTimeMillis() < (lastAutoBackup + 60000L)) {
                 failReason = "Manuel backup was recently taken";
                 return false;
             }
         }
-        if(currentFuture != null)
-        {
+
+        if (currentFuture != null) {
             failReason = "backup thread is somehow still running";
             FTBBackups.LOGGER.error("currentFuture is not null??");
             return false;
         }
 
-        long free = backupFolderPath.toFile().getFreeSpace();
-        long currentWorldSize = FileUtils.getFolderSize(worldFolder.toFile());
+        long minFreeSpace = Config.cached().minimum_free_space * 1000000L;
+        long free = backupFolderPath.toFile().getFreeSpace() - minFreeSpace;
+        long currentWorldSize = FileUtils.getFolderSize(worldFile);
         for (String p : Config.cached().additional_directories) {
             try {
                 Path path = worldFolder.getParent().resolve(p);
                 if (Files.exists(path) && Files.isDirectory(path)) {
                     currentWorldSize += FileUtils.getFolderSize(path.toFile());
                 }
-            } catch(Exception ignored) {}
+            } catch (Exception ignored) { }
         }
 
+        currentWorldSize += FileUtils.getFolderSize(serverRoot, path -> FileUtils.matchesAny(serverRoot.relativize(path), Config.cached().additional_files));
+
         if (getLatestBackup() == null) {
-            FTBBackups.LOGGER.info("Current world size: " + FileUtils.getSizeString(currentWorldSize) + " Current free space: " + FileUtils.getSizeString(free));
+            //This should be logged as an error because no new backups will be created until this is resolved.
+            FTBBackups.LOGGER.error("Current world size: " + FileUtils.getSizeString(currentWorldSize) + " Current Available space: " + FileUtils.getSizeString(free));
             if (currentWorldSize > free) {
                 failReason = "not enough free space on device";
+                isSpaceConstrained = true;
                 return false;
             }
         } else {
@@ -489,10 +661,11 @@ public class BackupHandler {
             float ratio = getLatestBackup().getRatio();
             long expectedSize = (int) (Math.ceil(currentWorldSize * ratio) / 100) * 105L;
 
-            FTBBackups.LOGGER.info("Last backup size: " + FileUtils.getSizeString(latestBackupSize) + " Current world size: " + FileUtils.getSizeString(currentWorldSize)
-                    + " Current free space: " + FileUtils.getSizeString(free) + " ExpectedSize " + FileUtils.getSizeString(expectedSize));
+            FTBBackups.LOGGER.error("Last backup size: " + FileUtils.getSizeString(latestBackupSize) + " Current world size: " + FileUtils.getSizeString(currentWorldSize)
+                    + " Current Available space: " + FileUtils.getSizeString(free) + " ExpectedSize " + FileUtils.getSizeString(expectedSize));
             if (expectedSize > free) {
                 failReason = "not enough free space on device";
+                isSpaceConstrained = true;
                 return false;
             }
         }
@@ -522,26 +695,12 @@ public class BackupHandler {
         }
     }
 
-    public static void setNoSave(MinecraftServer minecraftServer, boolean value)
-    {
-        if(minecraftServer == null) return;
-        try
-        {
-            if(minecraftServer.getAllLevels() != null)
-            {
-                for (ServerLevel level : minecraftServer.getAllLevels())
-                {
-                    if (level != null)
-                    {
-                        FTBBackups.LOGGER.info("Setting world " + level.dimension().location() + " save state to " + value);
-                        level.noSave = value;
-                    }
-                }
+    public static void setNoSave(MinecraftServer minecraftServer, boolean value) {
+        for (ServerLevel level : minecraftServer.getAllLevels()) {
+            if (level != null) {
+                FTBBackups.LOGGER.info("Setting world " + level.dimension().location() + " save state to " + value);
+                level.noSave = value;
             }
-        }
-        catch (Exception e)
-        {
-            e.printStackTrace();
         }
     }
 
@@ -550,23 +709,23 @@ public class BackupHandler {
         if (Config.cached().notify_op_only && minecraftServer instanceof DedicatedServer) {
             for (ServerPlayer player : minecraftServer.getPlayerList().getPlayers()) {
                 if (player.hasPermissions(4)) {
-                    player.sendMessage(message, Util.NIL_UUID);
+                    player.displayClientMessage(message, false);
                 }
             }
         } else {
             for (ServerPlayer player : minecraftServer.getPlayerList().getPlayers()) {
-                player.sendMessage(message, Util.NIL_UUID);
+                player.displayClientMessage(message, false);
             }
         }
     }
 
-    public static String format(long nano)
-    {
+    public static String format(long nano) {
         Duration duration = Duration.ofNanos(nano);
 
         long mins = duration.toMinutes();
-        long seconds  = duration.minusMinutes(mins).toSeconds();
+        long seconds = duration.minusMinutes(mins).toSeconds();
         long mili = duration.minusSeconds(seconds).toMillis();
-        return mins + "m, " +  seconds + "s, " + mili + "ms";
+
+        return mins + "m, " + seconds + "s, " + mili + "ms";
     }
 }

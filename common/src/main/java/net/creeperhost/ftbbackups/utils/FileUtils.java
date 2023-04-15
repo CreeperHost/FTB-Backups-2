@@ -1,14 +1,18 @@
 package net.creeperhost.ftbbackups.utils;
 
 import com.google.common.hash.HashCode;
+import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
+import net.creeperhost.ftbbackups.FTBBackups;
+import net.creeperhost.ftbbackups.config.Config;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -25,16 +29,47 @@ public class FileUtils {
     public static final double GB_D = MB_D * 1024D;
     public static final double TB_D = GB_D * 1024D;
 
-    public static void pack(Path zipFilePath, Path serverRoot, Iterable<Path> sourcePaths) throws IOException {
-        Path p = Files.createFile(zipFilePath);
-        Map<String, Path> seenFiles = new HashMap<>();
-        try (ZipOutputStream zs = new ZipOutputStream(Files.newOutputStream(p))) {
-            for (Path sourcePath : sourcePaths) {
+    public static void copy(Path outputDirectory, Path serverRoot, Iterable<Path> sourcePaths) throws IOException {
+        Path dir = Files.createDirectory(outputDirectory);
+
+        for (Path sourcePath : sourcePaths) {
+            if (!Files.isDirectory(sourcePath)) {
+                Path relFile = serverRoot.relativize(sourcePath);
+                if (matchesAny(relFile, Config.cached().excluded)) continue;
+                Path destFile = dir.resolve(relFile);
+                Files.createDirectories(destFile.getParent());
+                Files.copy(sourcePath, destFile);
+            } else {
                 try (Stream<Path> pathStream = Files.walk(sourcePath)) {
                     for (Path path : (Iterable<Path>) pathStream::iterator) {
                         if (Files.isDirectory(path)) continue;
+                        Path relFile = serverRoot.relativize(path);
+                        if (matchesAny(relFile, Config.cached().excluded)) continue;
+                        Path destFile = dir.resolve(relFile);
+                        Files.createDirectories(destFile.getParent());
+                        Files.copy(path, destFile);
+                    }
+                }
+            }
+        }
+    }
 
-                        packIntoZip(zs, serverRoot, path);
+    public static void zip(Path zipFilePath, Path serverRoot, Iterable<Path> sourcePaths) throws IOException {
+        Path p = Files.createFile(zipFilePath);
+        try (ZipOutputStream zs = new ZipOutputStream(Files.newOutputStream(p))) {
+            for (Path sourcePath : sourcePaths) {
+                if (!Files.isDirectory(sourcePath)) {
+                    Path relFile = serverRoot.relativize(sourcePath);
+                    if (matchesAny(relFile, Config.cached().excluded)) continue;
+                    packIntoZip(zs, serverRoot, sourcePath);
+                } else {
+                    try (Stream<Path> pathStream = Files.walk(sourcePath)) {
+                        for (Path path : (Iterable<Path>) pathStream::iterator) {
+                            if (Files.isDirectory(path)) continue;
+                            Path relFile = serverRoot.relativize(path);
+                            if (matchesAny(relFile, Config.cached().excluded)) continue;
+                            packIntoZip(zs, serverRoot, path);
+                        }
                     }
                 }
             }
@@ -45,18 +80,27 @@ public class FileUtils {
         // Don't pack session.lock files
         if (file.getFileName().toString().equals("session.lock")) return;
         // Don't try and copy a file that does not exist
-        if(!file.toFile().exists()) return;
+        if (!file.toFile().exists()) return;
         // Ensure files are readable
         if (!Files.isReadable(file)) return;
 
         ZipEntry zipEntry = new ZipEntry(rootDir.relativize(file).toString());
         zos.putNextEntry(zipEntry);
-        try
-        {
+        updateZipEntry(zipEntry, file);
+        try {
             Files.copy(file, zos);
-        }
-        catch (Exception ignored){}
+        } catch (Exception ignored) { }
         zos.closeEntry();
+    }
+
+    public static void updateZipEntry(ZipEntry zipEntry, Path path) {
+        try {
+            BasicFileAttributes basicFileAttributes = Files.readAttributes(path, BasicFileAttributes.class);
+            zipEntry.setLastModifiedTime(basicFileAttributes.lastModifiedTime());
+            zipEntry.setCreationTime(basicFileAttributes.creationTime());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public static boolean isChildOf(Path path, Path parent) {
@@ -66,7 +110,7 @@ public class FileUtils {
         return isChildOf(path.getParent(), parent);
     }
 
-    public static String getSha1(Path path) {
+    public static String getFileSha1(Path path) {
         try {
             HashCode sha1HashCode = com.google.common.io.Files.asByteSource(path.toFile()).hash(Hashing.sha1());
             return sha1HashCode.toString();
@@ -77,9 +121,35 @@ public class FileUtils {
         return "";
     }
 
+    public static String getDirectorySha1(Path directory) {
+        try {
+            Hasher hasher = Hashing.sha1().newHasher();
+            try (Stream<Path> pathStream = Files.walk(directory)) {
+                for (Path path : (Iterable<Path>) pathStream::iterator) {
+                    if (Files.isDirectory(path)) continue;
+                    HashCode hash = com.google.common.io.Files.asByteSource(path.toFile()).hash(Hashing.sha1());
+                    hasher.putBytes(hash.asBytes());
+                }
+            }
+            return hasher.hash().toString();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return "";
+    }
+
     public static long getFolderSize(File folder) {
         long length = 0;
         File[] files = folder.listFiles();
+        if (files == null) {
+            FTBBackups.LOGGER.warn("Attempt to get folder size for invalid folder: {}", folder.getAbsolutePath());
+            if (folder.isFile()) {
+                return folder.length();
+            } else {
+                return 0;
+            }
+        }
 
         int count = files.length;
 
@@ -91,6 +161,28 @@ public class FileUtils {
             }
         }
         return length;
+    }
+
+    public static long getFolderSize(Path folder, Predicate<Path> includeFile) {
+        long size = 0;
+
+        try {
+            if (!Files.isDirectory(folder)) {
+                return Files.size(folder);
+            }
+
+            try (Stream<Path> pathStream = Files.walk(folder)) {
+                for (Path path : (Iterable<Path>) pathStream::iterator) {
+                    if (Files.isDirectory(path) || !includeFile.test(path)) continue;
+                    size += Files.size(path);
+                }
+            }
+        }
+        catch (IOException e) {
+            FTBBackups.LOGGER.warn("Error occurred while calculating file size", e);
+        }
+
+        return size;
     }
 
 //    public static void createTarGzipFolder(Path source, Path out) throws IOException
@@ -176,5 +268,58 @@ public class FileUtils {
             return length;
         }
         return 0L;
+    }
+
+    public static boolean matchesAny(Path relPath, List<String> filters) {
+        for (String filter : filters) {
+            filter = filter.replaceAll("\\\\", "/");
+
+            boolean directory = filter.endsWith("/");
+
+            boolean sw = filter.startsWith("*");
+            if (sw) filter = filter.substring(1);
+
+            boolean ew = filter.endsWith("*") || directory;
+            if (ew) filter = filter.substring(0, filter.length() - 1);
+
+            boolean wildCard = sw || ew;
+
+            boolean path = filter.contains("/");
+            //Relative paths do not have a leading /
+            if (filter.startsWith("/") && !sw) filter = filter.substring(1);
+
+            //Is File Exclusion (e.g. fileName.txt)
+            if (!path && !wildCard) {
+                if (relPath.getFileName().toString().equals(filter)) {
+                    return true;
+                }
+            }
+            //Is Path Exclusion (e.g. world/region/fileName.txt)
+            else if (path && !wildCard) {
+                if (relPath.toString().equals(filter)) {
+                    return true;
+                }
+            }
+            // (e.g. *directory/file*)
+            else if (sw && ew) {
+                if (relPath.toString().contains(filter)) {
+                    return true;
+                }
+            }
+            // (e.g. *directory/fileName.txt)
+            else if (sw) {
+                if (relPath.toString().endsWith(filter)) {
+                    return true;
+                }
+            }
+            // (e.g. directory/file*)
+            else {
+                if (relPath.toString().startsWith(filter)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }
