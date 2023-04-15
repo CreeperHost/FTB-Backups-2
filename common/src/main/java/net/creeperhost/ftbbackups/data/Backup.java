@@ -2,6 +2,8 @@ package net.creeperhost.ftbbackups.data;
 
 import net.creeperhost.ftbbackups.config.Format;
 
+import java.util.Objects;
+
 public class Backup {
     private String worldName;
     private long createTime;
@@ -83,5 +85,18 @@ public class Backup {
     public Backup setComplete() {
         complete = true;
         return this;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Backup backup = (Backup) o;
+        return createTime == backup.createTime && size == backup.size && Float.compare(backup.ratio, ratio) == 0 && snapshot == backup.snapshot && Objects.equals(worldName, backup.worldName) && Objects.equals(backupLocation, backup.backupLocation) && Objects.equals(sha1, backup.sha1) && Objects.equals(preview, backup.preview) && Objects.equals(backupName, backup.backupName) && backupFormat == backup.backupFormat;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(worldName, createTime, backupLocation, size, ratio, sha1, preview, snapshot, backupName, backupFormat);
     }
 }

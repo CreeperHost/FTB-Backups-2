@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -31,14 +33,22 @@ public class FileUtils {
         Path dir = Files.createDirectory(outputDirectory);
 
         for (Path sourcePath : sourcePaths) {
-            try (Stream<Path> pathStream = Files.walk(sourcePath)) {
-                for (Path path : (Iterable<Path>) pathStream::iterator) {
-                    if (Files.isDirectory(path)) continue;
-                    Path relFile = serverRoot.relativize(path);
-                    if (excludeFile(relFile)) continue;
-                    Path destFile = dir.resolve(relFile);
-                    Files.createDirectories(destFile.getParent());
-                    Files.copy(path, destFile);
+            if (!Files.isDirectory(sourcePath)) {
+                Path relFile = serverRoot.relativize(sourcePath);
+                if (matchesAny(relFile, Config.cached().excluded)) continue;
+                Path destFile = dir.resolve(relFile);
+                Files.createDirectories(destFile.getParent());
+                Files.copy(sourcePath, destFile);
+            } else {
+                try (Stream<Path> pathStream = Files.walk(sourcePath)) {
+                    for (Path path : (Iterable<Path>) pathStream::iterator) {
+                        if (Files.isDirectory(path)) continue;
+                        Path relFile = serverRoot.relativize(path);
+                        if (matchesAny(relFile, Config.cached().excluded)) continue;
+                        Path destFile = dir.resolve(relFile);
+                        Files.createDirectories(destFile.getParent());
+                        Files.copy(path, destFile);
+                    }
                 }
             }
         }
@@ -48,12 +58,18 @@ public class FileUtils {
         Path p = Files.createFile(zipFilePath);
         try (ZipOutputStream zs = new ZipOutputStream(Files.newOutputStream(p))) {
             for (Path sourcePath : sourcePaths) {
-                try (Stream<Path> pathStream = Files.walk(sourcePath)) {
-                    for (Path path : (Iterable<Path>) pathStream::iterator) {
-                        if (Files.isDirectory(path)) continue;
-                        Path relFile = serverRoot.relativize(path);
-                        if (excludeFile(relFile)) continue;
-                        packIntoZip(zs, serverRoot, path);
+                if (!Files.isDirectory(sourcePath)) {
+                    Path relFile = serverRoot.relativize(sourcePath);
+                    if (matchesAny(relFile, Config.cached().excluded)) continue;
+                    packIntoZip(zs, serverRoot, sourcePath);
+                } else {
+                    try (Stream<Path> pathStream = Files.walk(sourcePath)) {
+                        for (Path path : (Iterable<Path>) pathStream::iterator) {
+                            if (Files.isDirectory(path)) continue;
+                            Path relFile = serverRoot.relativize(path);
+                            if (matchesAny(relFile, Config.cached().excluded)) continue;
+                            packIntoZip(zs, serverRoot, path);
+                        }
                     }
                 }
             }
@@ -147,6 +163,28 @@ public class FileUtils {
         return length;
     }
 
+    public static long getFolderSize(Path folder, Predicate<Path> includeFile) {
+        long size = 0;
+
+        try {
+            if (!Files.isDirectory(folder)) {
+                return Files.size(folder);
+            }
+
+            try (Stream<Path> pathStream = Files.walk(folder)) {
+                for (Path path : (Iterable<Path>) pathStream::iterator) {
+                    if (Files.isDirectory(path) || !includeFile.test(path)) continue;
+                    size += Files.size(path);
+                }
+            }
+        }
+        catch (IOException e) {
+            FTBBackups.LOGGER.warn("Error occurred while calculating file size", e);
+        }
+
+        return size;
+    }
+
 //    public static void createTarGzipFolder(Path source, Path out) throws IOException
 //    {
 //        GzipParameters gzipParameters = new GzipParameters();
@@ -232,49 +270,51 @@ public class FileUtils {
         return 0L;
     }
 
-    public static boolean excludeFile(Path relPath) {
-        for (String exclude : Config.cached().excluded) {
-            exclude = exclude.replaceAll("\\\\", "/");
+    public static boolean matchesAny(Path relPath, List<String> filters) {
+        for (String filter : filters) {
+            filter = filter.replaceAll("\\\\", "/");
 
-            boolean sw = exclude.startsWith("*");
-            if (sw) exclude = exclude.substring(1);
+            boolean directory = filter.endsWith("/");
 
-            boolean ew = exclude.endsWith("*");
-            if (ew) exclude = exclude.substring(0, exclude.length() - 1);
+            boolean sw = filter.startsWith("*");
+            if (sw) filter = filter.substring(1);
+
+            boolean ew = filter.endsWith("*") || directory;
+            if (ew) filter = filter.substring(0, filter.length() - 1);
 
             boolean wildCard = sw || ew;
 
-            boolean path = exclude.contains("/");
+            boolean path = filter.contains("/");
             //Relative paths do not have a leading /
-            if (exclude.startsWith("/") && !sw) exclude = exclude.substring(1);
+            if (filter.startsWith("/") && !sw) filter = filter.substring(1);
 
             //Is File Exclusion (e.g. fileName.txt)
             if (!path && !wildCard) {
-                if (relPath.getFileName().toString().equals(exclude)) {
+                if (relPath.getFileName().toString().equals(filter)) {
                     return true;
                 }
             }
             //Is Path Exclusion (e.g. world/region/fileName.txt)
             else if (path && !wildCard) {
-                if (relPath.toString().equals(exclude)) {
+                if (relPath.toString().equals(filter)) {
                     return true;
                 }
             }
             // (e.g. *directory/file*)
             else if (sw && ew) {
-                if (relPath.toString().contains(exclude)) {
+                if (relPath.toString().contains(filter)) {
                     return true;
                 }
             }
             // (e.g. *directory/fileName.txt)
             else if (sw) {
-                if (relPath.toString().endsWith(exclude)) {
+                if (relPath.toString().endsWith(filter)) {
                     return true;
                 }
             }
             // (e.g. directory/file*)
             else {
-                if (relPath.toString().startsWith(exclude)) {
+                if (relPath.toString().startsWith(filter)) {
                     return true;
                 }
             }
