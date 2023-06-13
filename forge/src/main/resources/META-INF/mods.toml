@@ -17,27 +17,27 @@ Backup all the things!
 [[dependencies.ftbbackups2]]
 modId = "forge"
 mandatory = true
-versionRange = "[41,)"
+versionRange = "[46,)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.ftbbackups2]]
 modId = "minecraft"
 mandatory = true
-versionRange = "[1.19.2,)"
+versionRange = "[1.20,)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.ftbbackups2]]
 modId = "architectury"
 mandatory = true
-versionRange = "[6.2.43,)"
+versionRange = "[9.0.7,)"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.ftbbackups2]]
 modId = "polylib"
 mandatory = true
-versionRange = "[1900.0.2,)"
+versionRange = "[1200.0.0,)"
 ordering = "AFTER"
 side = "BOTH"
