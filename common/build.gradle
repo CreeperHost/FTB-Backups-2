@@ -6,7 +6,7 @@ dependencies {
     modApi "dev.architectury:architectury:${rootProject.architectury_version}"
     implementation "blue.endless:jankson:1.2.1"
     implementation 'org.quartz-scheduler:quartz:2.0.2'
-    implementation rootProject.files('libs/BlockMap-cli-2.4.2.jar')
+    implementation rootProject.files("libs/BlockMap-cli-${rootProject.blockmap_version}.jar")
     modApi("net.creeperhost:polylib-fabric:${rootProject.polylib_version}")
 
 }
