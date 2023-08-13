@@ -93,4 +93,7 @@ public class ConfigData {
             *path/ends/with.txt             Any files who's path ends with
             *path/contains*                 Any files who's path contains""")
     public List<String> excluded = new ArrayList<>();
+
+    @Comment("The dimension used when creating backup preview image, specify \"all\" to enable automatic detection of primary dimension (can be very slow)")
+    public String preview_dimension = "minecraft:overworld";
 }
