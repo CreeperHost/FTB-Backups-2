@@ -3,12 +3,6 @@ package net.creeperhost.ftbbackups;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import de.piegames.blockmap.MinecraftDimension;
-import de.piegames.blockmap.renderer.RegionRenderer;
-import de.piegames.blockmap.renderer.RenderSettings;
-import de.piegames.blockmap.repack.org.joml.Vector2ic;
-import de.piegames.blockmap.world.Region;
-import de.piegames.blockmap.world.RegionFolder;
 import net.creeperhost.ftbbackups.config.Config;
 import net.creeperhost.ftbbackups.config.Format;
 import net.creeperhost.ftbbackups.config.RetentionMode;
@@ -16,26 +10,41 @@ import net.creeperhost.ftbbackups.data.Backup;
 import net.creeperhost.ftbbackups.data.Backups;
 import net.creeperhost.ftbbackups.utils.FileUtils;
 import net.creeperhost.ftbbackups.utils.TieredBackupTest;
+import net.creeperhost.levelio.LevelIO;
+import net.creeperhost.levelio.data.Level;
+import net.creeperhost.levelpreview.ActivityScanner;
+import net.creeperhost.levelpreview.CaptureHandler;
+import net.creeperhost.levelpreview.ColourMap;
+import net.creeperhost.levelpreview.LevelPreview;
+import net.creeperhost.levelpreview.lib.CaptureArea;
+import net.creeperhost.levelpreview.lib.SimplePNG;
+import net.minecraft.core.Registry;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.network.chat.TranslatableComponent;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.dedicated.DedicatedServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.storage.LevelResource;
 import org.apache.commons.io.IOUtils;
 import org.jetbrains.annotations.Nullable;
 
-import javax.imageio.ImageIO;
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.nio.charset.Charset;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,6 +53,7 @@ import java.util.stream.Stream;
 public class BackupHandler {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    private static final LevelPreview PREVIEW = new LevelPreview(new MCNBTImpl());
 
     private static Path serverRoot;
     private static Path backupFolderPath;
@@ -89,7 +99,10 @@ public class BackupHandler {
         loadJson();
         FTBBackups.LOGGER.info("Starting backup cleaning thread");
         if (FTBBackups.backupExecutor == null || FTBBackups.backupExecutor.isShutdown()) {
-            FTBBackups.backupExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups backup thread %d").build());
+            FTBBackups.backupExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder()
+                    .setNameFormat("FTB Backups backup thread %d")
+                    .setUncaughtExceptionHandler((t, e) -> FTBBackups.LOGGER.error("An error occurred running backup task", e))
+                    .build());
         }
         if (FTBBackups.backupCleanerWatcherExecutorService.isShutdown()) {
             FTBBackups.backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder()
@@ -98,62 +111,85 @@ public class BackupHandler {
                     .build());
         }
         FTBBackups.backupCleanerWatcherExecutorService.scheduleAtFixedRate(BackupHandler::clean, 0, 30, TimeUnit.SECONDS);
+        initPreview();
+    }
+
+    private static void initPreview() {
+        //Add all known blocks to the block map
+        ColourMap colourMap = PREVIEW.getColourMap();
+        CaptureHandler.init(1);
+        for (ResourceLocation regName : Registry.BLOCK.keySet()) {
+            Block block = Registry.BLOCK.get(regName);
+            int colour = block.defaultMaterialColor().col;
+            colourMap.addBlockMapping(regName.toString(), colour);
+        }
     }
 
     public static String createPreview(MinecraftServer minecraftServer) {
         try {
-            MinecraftDimension dim = MinecraftDimension.OVERWORLD;
-            RenderSettings settings = new RenderSettings();
-            RegionRenderer renderer = new RegionRenderer(settings);
+            long scanStart = System.currentTimeMillis();
             Path worldPath = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
-            Path dimPath = worldPath.resolve(dim.getRegionPath());
-            Path previewPath = worldPath.resolve("backupPreview");
-            RegionFolder.WorldRegionFolder w = RegionFolder.WorldRegionFolder.load(dimPath, renderer, false);
-            RegionFolder.CachedRegionFolder r = RegionFolder.CachedRegionFolder.create(w, false, previewPath);
-            try {
-                Files.walk(previewPath).forEach((f) -> {
-                    try {
-                        Files.deleteIfExists(f);
-                    } catch (IOException ignored) {
+            PREVIEW.loadWorld(worldPath);
+            LevelIO levelIO = PREVIEW.getLevelIO();
+
+            String previewDim = Config.cached().preview_dimension;
+            CaptureArea area;
+
+            //Find dimensions with player activity
+            if ("all".equals(previewDim)) {
+                List<ActivityScanner> scanners = new ArrayList<>();
+                for (Level level : levelIO.getLevels()) {
+                    ActivityScanner scanner = new ActivityScanner(levelIO, level, 1);
+                    if (scanner.findActivityClusters(512, 512, 1)) {
+                        scanners.add(scanner);
                     }
-                });
-                Files.deleteIfExists(previewPath);
-                Files.createDirectories(previewPath);
-            } catch (Exception ignored) { }
-            Vector2ic lastPos = null;
-            long lastTimestamp = 0;
-            for (Vector2ic p : w.listRegions()) {
-                try {
-                    long thisTimestamp = w.getTimestamp(p);
-                    //TODO: Implement size checking too, later.
-                    if (thisTimestamp > lastTimestamp) {
-                        lastPos = p;
-                        lastTimestamp = thisTimestamp;
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
                 }
-            }
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            if (lastPos != null) {
-                Region render = r.render(lastPos);
-                ImageIO.write(render.getImage(), "png", baos);
-            }
-            byte[] image = baos.toByteArray();
-            try {
-                Files.walk(previewPath).forEach((f) -> {
-                    try {
-                        Files.deleteIfExists(f);
-                    } catch (IOException ignored) {
+
+                if (scanners.isEmpty()) {
+                    return ""; //This should only happen if all dimensions are empty.
+                }
+
+                //Get the scanner for the dimension with the highest habitation factor (The dim players have spent the most time in)
+                scanners.sort(Comparator.comparingDouble(ActivityScanner::getTotalHabitationFactor).reversed());
+                ActivityScanner scanner = scanners.get(0);
+                //Since we set maxClusters to 1 we should have exactly 1 result.
+                area = scanner.getResults().get(0);
+            } else {
+                Level level = levelIO.getLevel(previewDim);
+                if (level == null) {
+                    FTBBackups.LOGGER.error("Could not find specified dimension {}, using overworld", previewDim);
+                    level = levelIO.getLevel("minecraft:overworld");
+                    if (level == null) {
+                        FTBBackups.LOGGER.warn("overworld dimension not found, will not create backup preview image");
+                        return "";
                     }
-                });
-                Files.deleteIfExists(previewPath);
-            } catch (Exception ignored) { }
-            baos.close();
+                }
+                ActivityScanner scanner = new ActivityScanner(levelIO, level, 1);
+                if (!scanner.findActivityClusters(512, 512, 1)) {
+                    return ""; //Dimension is empty
+                }
+                area = scanner.getResults().get(0);
+            }
+
+            long captureStart = System.currentTimeMillis();
+            SimplePNG.SimpleImg capture = PREVIEW.newCapture()
+                    .captureArea(area)
+                    .doCapture()
+                    .getImage();
+
+            //Closes the underlying LevelIO.
+            PREVIEW.close();
+
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            SimplePNG.writePNG(os, capture);
+            byte[] image = os.toByteArray();
+
+            FTBBackups.LOGGER.info("Backup preview created, Scan took {}ms, Capture took {}ms", captureStart - scanStart, System.currentTimeMillis() - captureStart);
             return "data:image/png;base64, " + Base64.getEncoder().encodeToString(image);
         } catch (Exception ex) {
-            ex.printStackTrace();
+            FTBBackups.LOGGER.error("An error occurred while generating backup preview", ex);
         }
+
         return "";
     }
 
@@ -643,7 +679,8 @@ public class BackupHandler {
                 if (Files.exists(path) && Files.isDirectory(path)) {
                     currentWorldSize += FileUtils.getFolderSize(path.toFile());
                 }
-            } catch (Exception ignored) { }
+            } catch (Exception ignored) {
+            }
         }
 
         currentWorldSize += FileUtils.getFolderSize(serverRoot, path -> FileUtils.matchesAny(serverRoot.relativize(path), Config.cached().additional_files));
@@ -676,15 +713,19 @@ public class BackupHandler {
         if (backups == null) return;
         if (backups.get().isEmpty()) return;
         List<Backup> backupsCopy = new ArrayList<>(backups.get().getBackups());
+        boolean update = false;
         for (Backup backup : backupsCopy) {
             FTBBackups.LOGGER.debug("Verifying backup " + backup.getBackupLocation());
 
             if (!Files.exists(Path.of(backup.getBackupLocation()))) {
                 removeBackup(backup);
+                update = true;
                 FTBBackups.LOGGER.info("File missing, removing from backups " + backup.getBackupLocation());
             }
         }
-        updateJson();
+        if (update){
+            updateJson();
+        }
     }
 
     public static void createBackupFolder(Path path) {

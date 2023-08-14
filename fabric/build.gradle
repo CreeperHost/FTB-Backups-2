@@ -9,10 +9,13 @@ architectury {
 
 configurations {
     common
+    shadowLib
     shadowCommon // Don't use shadow from the shadow plugin because we don't want IDEA to index this.
+    shadowCommon.extendsFrom shadowLib
     compileClasspath.extendsFrom common
     runtimeClasspath.extendsFrom common
     developmentFabric.extendsFrom common
+    implementation.extendsFrom shadowLib
 }
 
 dependencies {
@@ -24,13 +27,11 @@ dependencies {
     common(project(path: ":common", configuration: "namedElements")) { transitive false }
     shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive false }
 
-    implementation "blue.endless:jankson:1.2.1"
-    shadowCommon "blue.endless:jankson:1.2.1"
-
-    implementation 'org.quartz-scheduler:quartz:2.0.2'
-    implementation rootProject.files('libs/BlockMap-cli-2.4.2.jar')
-    shadowCommon "org.quartz-scheduler:quartz:2.0.2"
-    shadowCommon rootProject.files('libs/BlockMap-cli-2.4.2.jar')
+    shadowLib "blue.endless:jankson:1.2.1"
+    shadowLib "org.quartz-scheduler:quartz:2.0.2"
+    shadowLib "net.covers1624:Quack:0.4.6.69"
+    shadowLib ("net.creeperhost:LevelPreview:${rootProject.preview_version}") { transitive = false }
+    shadowLib ("net.creeperhost:LevelIO:${rootProject.levelio_version}") { transitive = false }
 }
 
 processResources {
@@ -43,17 +44,25 @@ processResources {
 
 shadowJar {
     configurations = [project.configurations.shadowCommon]
+    classifier "dev-shadow"
+
     dependencies {
         exclude(dependency("org.apache.logging::"))
         exclude(dependency("org.slf4j::"))
         exclude(dependency("javax.transaction::"))
     }
 
-    relocate 'blue.endless.jankson', 'net.creeperhost.ftbbackups.blue.endless.jankson'
-    relocate 'org.quartz', 'net.creeperhost.ftbbackups.org.quartz'
-    relocate 'de.piegames', 'net.creeperhost.ftbbackups.de.piegames'
+    def repackPackages = [
+            'net/covers1624',
+            'blue/endless',
+            'de/piegames',
+            'org/quartz'
+    ]
 
-    classifier "dev-shadow"
+    repackPackages.each {
+        // Move all repack packages under ftbbackups namespace
+        relocate it, "net/creeperhost/ftbbackups/repack/$it"
+    }
 }
 
 remapJar {

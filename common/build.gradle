@@ -5,8 +5,10 @@ dependencies {
     // Remove the next line if you don't want to depend on the API
     modApi "dev.architectury:architectury:${rootProject.architectury_version}"
     implementation "blue.endless:jankson:1.2.1"
+    implementation "net.covers1624:Quack:0.4.6.69"
     implementation 'org.quartz-scheduler:quartz:2.0.2'
-    implementation rootProject.files('libs/BlockMap-cli-2.4.2.jar')
+    implementation "net.creeperhost:LevelPreview:${rootProject.preview_version}"
+    implementation "net.creeperhost:LevelIO:${rootProject.levelio_version}"
 }
 
 architectury {
