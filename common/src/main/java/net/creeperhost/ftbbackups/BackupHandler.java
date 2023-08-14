@@ -711,15 +711,19 @@ public class BackupHandler {
         if (backups == null) return;
         if (backups.get().isEmpty()) return;
         List<Backup> backupsCopy = new ArrayList<>(backups.get().getBackups());
+        boolean update = false;
         for (Backup backup : backupsCopy) {
             FTBBackups.LOGGER.debug("Verifying backup " + backup.getBackupLocation());
 
             if (!Files.exists(Path.of(backup.getBackupLocation()))) {
                 removeBackup(backup);
+                update = true;
                 FTBBackups.LOGGER.info("File missing, removing from backups " + backup.getBackupLocation());
             }
         }
-        updateJson();
+        if (update){
+            updateJson();
+        }
     }
 
     public static void createBackupFolder(Path path) {
