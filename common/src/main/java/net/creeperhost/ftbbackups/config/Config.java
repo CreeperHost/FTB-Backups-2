@@ -103,10 +103,6 @@ public class Config {
                     } catch (Exception ignored) {
                     }
                 };
-                if(FTBBackups.configWatcherExecutorService.isShutdown())
-                {
-                    FTBBackups.configWatcherExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups Config Watcher %d").setDaemon(true).build());
-                }
                 FTBBackups.configWatcherExecutorService.scheduleAtFixedRate(configWatcher, 0, 10, TimeUnit.SECONDS);
 
             } catch (Exception ignored) {

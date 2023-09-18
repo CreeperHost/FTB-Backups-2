@@ -1,15 +1,11 @@
 package net.creeperhost.ftbbackups;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.mojang.brigadier.CommandDispatcher;
 import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.platform.Platform;
 import net.creeperhost.ftbbackups.commands.BackupCommand;
 import net.creeperhost.ftbbackups.config.Config;
-import net.minecraft.commands.CommandBuildContext;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -19,20 +15,35 @@ import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class FTBBackups {
     public static final String MOD_ID = "ftbbackups2";
     public static Logger LOGGER = LogManager.getLogger();
     public static Path configFile = Platform.getConfigFolder().resolve(MOD_ID + ".json");
 
-    public static ScheduledExecutorService configWatcherExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups Config Watcher %d").build());
-    public static ScheduledExecutorService backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder().setNameFormat("FTB Backups scheduled executor %d").build());
-    public static ExecutorService backupExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder().setNameFormat("FTB Backups backup thread %d").build());
+    public static final ScheduledExecutorService configWatcherExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+            .setDaemon(true)
+            .setUncaughtExceptionHandler((t, e) -> FTBBackups.LOGGER.error("An error occurred running watcher task", e))
+            .setNameFormat("FTB Backups Config Watcher %d")
+            .build()
+    );
+    public static final ScheduledExecutorService backupCleanerExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder()
+            .setDaemon(true)
+            .setUncaughtExceptionHandler((t, e) -> FTBBackups.LOGGER.error("An error occurred running cleaner task", e))
+            .setNameFormat("FTB Backups scheduled executor %d")
+            .build()
+    );
+    public static final ExecutorService backupExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder()
+            .setDaemon(true)
+            .setUncaughtExceptionHandler((t, e) -> FTBBackups.LOGGER.error("An error occurred running backup task", e))
+            .setNameFormat("FTB Backups backup thread %d")
+            .build()
+    );
 
     public static MinecraftServer minecraftServer;
     public static Scheduler scheduler;
@@ -41,17 +52,45 @@ public class FTBBackups {
 
     public static void init() {
         Config.init(configFile.toFile());
+        if (!Config.cached().enabled) return; //If not enabled then just don't do anything!
         CommandRegistrationEvent.EVENT.register((dispatcher, registry, selection) -> dispatcher.register(BackupCommand.register()));
         LifecycleEvent.SERVER_STARTED.register(FTBBackups::serverStartedEvent);
-        LifecycleEvent.SERVER_STOPPING.register(instance -> killOutThreads());
+        LifecycleEvent.SERVER_STOPPING.register(instance -> onShutdown());
         LifecycleEvent.SERVER_LEVEL_SAVE.register(FTBBackups::serverSaveEvent);
-        Runtime.getRuntime().addShutdownHook(new Thread(FTBBackups::killOutThreads));
+        //Add this once on startup, so we don't need to mess with stopping and starting the executor, BackupHandler#clean won't do anything if backups are not active.
+        FTBBackups.backupCleanerExecutorService.scheduleAtFixedRate(BackupHandler::clean, 0, 30, TimeUnit.SECONDS);
+
+        if (!CronExpression.isValidExpression(Config.cached().backup_cron)) {
+            FTBBackups.LOGGER.error("backup_cron is invalid, restoring default value");
+            Config.cached().backup_cron = "0 */30 * * * ?";
+            Config.saveConfig();
+        }
+        try {
+            JobDetail jobDetail = JobBuilder.newJob(BackupJob.class).withIdentity(MOD_ID).build();
+            Properties properties = new Properties();
+            properties.put(StdSchedulerFactory.PROP_SCHED_INSTANCE_NAME, MOD_ID);
+            properties.put("org.quartz.threadPool.threadCount", "1");
+            //Let's also make this a daemon, so we can just leave the scheduler running.
+            properties.put("org.quartz.threadPool.makeThreadsDaemons", "true");
+            properties.put(StdSchedulerFactory.PROP_SCHED_MAKE_SCHEDULER_THREAD_DAEMON, "true");
+            SchedulerFactory schedulerFactory = new StdSchedulerFactory(properties);
+            scheduler = schedulerFactory.getScheduler();
+            CronTrigger trigger = TriggerBuilder.newTrigger()
+                    .withIdentity(MOD_ID)
+                    .withSchedule(CronScheduleBuilder.cronSchedule(Config.cached().backup_cron))
+                    .build();
+
+            scheduler.start();
+            scheduler.scheduleJob(jobDetail, trigger);
+        } catch (Exception e) {
+            LOGGER.error("An error occurred while, starting backup scheduler", e);
+        }
     }
 
     private static void serverSaveEvent(ServerLevel serverLevel) {
-        if(serverLevel == null || serverLevel.isClientSide) return;
+        if (serverLevel == null || serverLevel.isClientSide) return;
         ServerPlayer player = serverLevel.getRandomPlayer();
-        if(player != null ) {
+        if (player != null) {
             BackupHandler.isDirty = true;
         }
     }
@@ -60,90 +99,39 @@ public class FTBBackups {
         FTBBackups.minecraftServer = minecraftServer;
         BackupHandler.init(minecraftServer);
         isShutdown = false;
-        if (Config.cached().enabled) {
-            if (!CronExpression.isValidExpression(Config.cached().backup_cron)) {
-                FTBBackups.LOGGER.error("backup_cron is invalid, restoring default value");
-                Config.cached().backup_cron = "0 */30 * * * ?";
-                Config.saveConfig();
-            }
-            try {
-                JobDetail jobDetail = JobBuilder.newJob(BackupJob.class).withIdentity(MOD_ID).build();
-                Properties properties = new Properties();
-                properties.put("org.quartz.scheduler.instanceName", MOD_ID);
-                properties.put("org.quartz.threadPool.threadCount", "1");
-                SchedulerFactory schedulerFactory = new StdSchedulerFactory(properties);
-                scheduler = schedulerFactory.getScheduler();
-                CronTrigger trigger = TriggerBuilder.newTrigger()
-                        .withIdentity(MOD_ID)
-                        .withSchedule(CronScheduleBuilder.cronSchedule(Config.cached().backup_cron))
-                        .build();
-
-                scheduler.start();
-                scheduler.scheduleJob(jobDetail, trigger);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
     }
 
-    public static void killOutThreads()
-    {
-        try
-        {
+    public static void onShutdown() {
+        if (FTBBackups.isShutdown) return;
+        try {
             int shutdownCount = 0;
             FTBBackups.isShutdown = true;
-
-            while(BackupHandler.isRunning())
-            {
-                if(shutdownCount > 120) break;
+            while (BackupHandler.isRunning()) {
+                if (shutdownCount > 120) break;
                 //Let's hold up shutting down if we're mid-backup I guess... But limit it to waiting 2 minutes.
                 try {
                     if (shutdownCount % 10 == 0) FTBBackups.LOGGER.info("Backup in progress, Waiting for it to finish before shutting down.");
                     Thread.sleep(1000);
                     shutdownCount++;
-                } catch (InterruptedException ignored) {}
+                } catch (InterruptedException ignored) {
+                }
             }
 
-            if(scheduler != null && !scheduler.isShutdown())
-            {
-                scheduler.clear();
-                LOGGER.info("Shutting down scheduler thread");
-                scheduler.shutdown(false);
-            }
-            Config.watcher.get().close();
-            if(!FTBBackups.configWatcherExecutorService.isShutdown())
-            {
-                LOGGER.info("Shutting down the config watcher executor");
-                FTBBackups.configWatcherExecutorService.shutdownNow();
-            }
-            if(!FTBBackups.backupCleanerWatcherExecutorService.isShutdown())
-            {
-                LOGGER.info("Shutting down backup cleaning executor");
-                FTBBackups.backupCleanerWatcherExecutorService.shutdownNow();
-            }
-            if(!FTBBackups.backupExecutor.isShutdown())
-            {
-                LOGGER.info("Shutting down backup executor");
-                FTBBackups.backupExecutor.shutdownNow();
-            }
+            if (Config.watcher.get() != null) Config.watcher.get().close();
             BackupHandler.backupRunning.set(false);
-            LOGGER.info("=========Checking everything is shut down============");
-            LOGGER.info("Scheduler Shutdown:{}", scheduler.isShutdown());
-            LOGGER.info("Config watcher Shutdown:{}", FTBBackups.configWatcherExecutorService.isShutdown());
-            LOGGER.info("Cleaner watcher Shutdown:{}", FTBBackups.backupCleanerWatcherExecutorService.isShutdown());
-            LOGGER.info("Backup Executor Shutdown:{}", FTBBackups.backupExecutor.isShutdown());
-            LOGGER.info("========Shutdown completed, FTB Backups has now finished shutting down==========");
 
-        } catch (Exception e)
-        {
-            e.printStackTrace();
+            //We don't need to shut down the executors if they use daemon threads!
+
+            LOGGER.info("Shutdown Complete");
+        } catch (Exception e) {
+            LOGGER.error("An error occurred during shutdown process", e);
         }
     }
 
     public static class BackupJob implements Job {
         @Override
-        public void execute(JobExecutionContext context) throws JobExecutionException {
-            if (FTBBackups.minecraftServer != null) {
+        public void execute(JobExecutionContext context) {
+            if (FTBBackups.minecraftServer != null && !FTBBackups.isShutdown) {
                 FTBBackups.LOGGER.info("Attempting to create an automatic backup");
                 BackupHandler.createBackup(FTBBackups.minecraftServer);
             }
