@@ -1,6 +1,5 @@
 package net.creeperhost.ftbbackups;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.creeperhost.ftbbackups.config.Config;
@@ -43,7 +42,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -97,20 +95,6 @@ public class BackupHandler {
         createBackupFolder(backupFolderPath);
 
         loadJson();
-        FTBBackups.LOGGER.info("Starting backup cleaning thread");
-        if (FTBBackups.backupExecutor == null || FTBBackups.backupExecutor.isShutdown()) {
-            FTBBackups.backupExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder()
-                    .setNameFormat("FTB Backups backup thread %d")
-                    .setUncaughtExceptionHandler((t, e) -> FTBBackups.LOGGER.error("An error occurred running backup task", e))
-                    .build());
-        }
-        if (FTBBackups.backupCleanerWatcherExecutorService.isShutdown()) {
-            FTBBackups.backupCleanerWatcherExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder()
-                    .setNameFormat("FTB Backups scheduled executor %d")
-                    .setUncaughtExceptionHandler((t, e) -> FTBBackups.LOGGER.error("An error occurred running cleaner task", e))
-                    .build());
-        }
-        FTBBackups.backupCleanerWatcherExecutorService.scheduleAtFixedRate(BackupHandler::clean, 0, 30, TimeUnit.SECONDS);
         initPreview();
     }
 
@@ -203,7 +187,7 @@ public class BackupHandler {
 
     public static void createBackup(MinecraftServer minecraftServer, boolean protect, String name) {
         try {
-            if (FTBBackups.isShutdown) return;
+            if (FTBBackups.isShutdown || !Config.cached().enabled) return;
 
             if (Config.cached().only_if_players_been_online && !BackupHandler.isDirty) {
                 FTBBackups.LOGGER.info("Skipping backup, no players have been online since last backup.");
@@ -395,7 +379,7 @@ public class BackupHandler {
                 backupRunning.set(false);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            FTBBackups.LOGGER.error("An error occurred while running backup!", e);
             backupRunning.set(false);
         }
     }
@@ -459,7 +443,7 @@ public class BackupHandler {
     }
 
     public static void clean() {
-        //Don't run clean if there is a backup already running
+        //Don't run clean if there is a backup already running, Or if in shutdown state
         if (FTBBackups.isShutdown) return;
         if (backupRunning.get()) return;
         if (backups == null) return;
