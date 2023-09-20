@@ -45,6 +45,10 @@ public class Backup {
         return size;
     }
 
+    public void setSize(long size) {
+        this.size = size;
+    }
+
     public String getSha1() {
         return sha1;
     }
