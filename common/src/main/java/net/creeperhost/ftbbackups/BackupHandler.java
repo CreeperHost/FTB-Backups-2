@@ -212,7 +212,7 @@ public class BackupHandler {
                 AtomicLong finishTime = new AtomicLong();
 
                 //Add the backup entry first so in the event the backup is interrupted we are not left with an orphaned partial backup that will never get cleared automatically.
-                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), lastAutoBackup, backupLocation.toString(), FileUtils.getSize(backupLocation.toFile()), 0, "", backupPreview.get(), protect, name, format, false);
+                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), lastAutoBackup, backupLocation.toString(), 0, 0, "", backupPreview.get(), protect, name, format, false);
                 addBackup(backup);
                 updateJson();
 
@@ -344,11 +344,12 @@ public class BackupHandler {
 
                     String sha1;
                     float ratio = 1;
+                    long backupSize = FileUtils.getSize(backupLocation.toFile());
                     if (format == Format.ZIP) {
                         //Get the sha1 of the new backup .zip to store to the json file
                         sha1 = FileUtils.getFileSha1(backupLocation);
                         //Do some math to figure out the ratio of compression
-                        ratio = (float) backupLocation.toFile().length() / (float) FileUtils.getFolderSize(worldFolder.toFile());
+                        ratio = (float) backupSize / (float) FileUtils.getFolderSize(worldFolder.toFile());
                     } else {
                         sha1 = FileUtils.getDirectorySha1(backupLocation);
                     }
@@ -356,6 +357,7 @@ public class BackupHandler {
                     FTBBackups.LOGGER.info("Backup size " + FileUtils.getSizeString(backupLocation.toFile().length()) + " World Size " + FileUtils.getSizeString(FileUtils.getFolderSize(worldFolder.toFile())));
                     //Update backup entry data entry and mark it as complete.
                     backup.setRatio(ratio).setSha1(sha1).setComplete();
+                    backup.setSize(backupSize);
 
                     updateJson();
                     FTBBackups.LOGGER.info("New backup created at " + backupLocation + " size: " + FileUtils.getSizeString(backupLocation) + " Took: " + format(elapsedTime) + " Sha1: " + sha1);
@@ -680,7 +682,7 @@ public class BackupHandler {
             float ratio = getLatestBackup().getRatio();
             long expectedSize = (int) (Math.ceil(currentWorldSize * ratio) / 100) * 105L;
 
-            FTBBackups.LOGGER.error("Last backup size: " + FileUtils.getSizeString(latestBackupSize) + " Current world size: " + FileUtils.getSizeString(currentWorldSize)
+            FTBBackups.LOGGER.info("Last backup size: " + FileUtils.getSizeString(latestBackupSize) + " Current world size: " + FileUtils.getSizeString(currentWorldSize)
                     + " Current Available space: " + FileUtils.getSizeString(free) + " ExpectedSize " + FileUtils.getSizeString(expectedSize));
             if (expectedSize > free) {
                 failReason = "not enough free space on device";
