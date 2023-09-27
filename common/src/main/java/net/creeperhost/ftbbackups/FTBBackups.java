@@ -3,11 +3,12 @@ package net.creeperhost.ftbbackups;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.architectury.event.events.common.LifecycleEvent;
+import dev.architectury.event.events.common.TickEvent;
 import dev.architectury.platform.Platform;
 import net.creeperhost.ftbbackups.commands.BackupCommand;
 import net.creeperhost.ftbbackups.config.Config;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.players.PlayerList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.quartz.*;
@@ -55,7 +56,7 @@ public class FTBBackups {
         CommandRegistrationEvent.EVENT.register((dispatcher, selection) -> dispatcher.register(BackupCommand.register()));
         LifecycleEvent.SERVER_STARTED.register(FTBBackups::serverStartedEvent);
         LifecycleEvent.SERVER_STOPPING.register(instance -> onShutdown());
-        LifecycleEvent.SERVER_LEVEL_SAVE.register(FTBBackups::serverSaveEvent);
+        TickEvent.SERVER_PRE.register(FTBBackups::onServerTickPre);
         //Add this once on startup, so we don't need to mess with stopping and starting the executor, BackupHandler#clean won't do anything if backups are not active.
         FTBBackups.backupCleanerExecutorService.scheduleAtFixedRate(BackupHandler::clean, 0, 30, TimeUnit.SECONDS);
 
@@ -86,9 +87,11 @@ public class FTBBackups {
         }
     }
 
-    public static void serverSaveEvent(ServerLevel serverLevel) {
-        if(serverLevel == null || serverLevel.isClientSide) return;
-        BackupHandler.isDirty = serverLevel.getServer().getPlayerCount() > 0;
+    private static void onServerTickPre(MinecraftServer server) {
+        if (server == null) return;
+        PlayerList list = server.getPlayerList();
+        if (list == null) return;
+        BackupHandler.isDirty |= list.getPlayerCount() > 0;
     }
 
     private static void serverStartedEvent(MinecraftServer minecraftServer) {
