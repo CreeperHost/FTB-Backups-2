@@ -203,7 +203,11 @@ public class BackupHandler {
 
                 backupRunning.set(true);
                 //Force save all the chunk and player data
-                CompletableFuture<?> saveOp = minecraftServer.submit(() -> minecraftServer.saveEverything(true, true, true));
+                CompletableFuture<?> saveOp = minecraftServer.submit(() -> {
+                    if (!minecraftServer.isCurrentlySaving()) {
+                        minecraftServer.saveEverything(true, false, true);
+                    }
+                });
                 //Set the worlds not to save while we are creating a backup
                 setNoSave(minecraftServer, true);
                 //Store the time we started the backup
