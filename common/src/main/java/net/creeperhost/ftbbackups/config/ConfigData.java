@@ -98,5 +98,5 @@ public class ConfigData {
     public String preview_dimension = "minecraft:overworld";
 
     @Comment("Ensure all data is saved to disk before backup. WARNING, Can cause lag spikes")
-    public boolean save_everything = false;
+    public boolean save_everything = true;
 }
