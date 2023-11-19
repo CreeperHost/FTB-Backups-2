@@ -96,7 +96,4 @@ public class ConfigData {
 
     @Comment("The dimension used when creating backup preview image, specify \"all\" to enable automatic detection of primary dimension (can be very slow)")
     public String preview_dimension = "minecraft:overworld";
-
-    @Comment("Ensure all data is saved to disk before backup. WARNING, Can cause lag spikes")
-    public boolean save_everything = false;
 }
