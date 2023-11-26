@@ -94,6 +94,6 @@ public class ConfigData {
             *path/contains*                 Any files who's path contains""")
     public List<String> excluded = new ArrayList<>();
 
-    @Comment("The dimension used when creating backup preview image, specify \"all\" to enable automatic detection of primary dimension (can be very slow)")
+    @Comment("The dimension used when creating backup preview image, specify \"all\" to enable automatic detection of primary dimension (can be very slow)\nSpecify \"none\" to disable preview")
     public String preview_dimension = "minecraft:overworld";
 }

@@ -111,12 +111,17 @@ public class BackupHandler {
 
     public static String createPreview(MinecraftServer minecraftServer) {
         try {
+            String previewDim = Config.cached().preview_dimension;
+            if (previewDim.toLowerCase(Locale.ROOT).equals("none")) {
+                FTBBackups.LOGGER.info("Skipping backup preview because preview is disabled.");
+                return "";
+            }
+            
             long scanStart = System.currentTimeMillis();
             Path worldPath = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
             PREVIEW.loadWorld(worldPath);
             LevelIO levelIO = PREVIEW.getLevelIO();
 
-            String previewDim = Config.cached().preview_dimension;
             CaptureArea area;
 
             //Find dimensions with player activity
