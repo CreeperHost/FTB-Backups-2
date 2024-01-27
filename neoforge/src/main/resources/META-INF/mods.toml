@@ -1,5 +1,5 @@
 modLoader = "javafml"
-loaderVersion = "[48,)"
+loaderVersion = "[1.0,)"
 #issueTrackerURL = ""
 license = "All Rights Reserved"
 
@@ -15,9 +15,9 @@ Backup all the things!
 #logoFile = ""
 
 [[dependencies.ftbbackups2]]
-modId = "forge"
+modId = "neoforge"
 mandatory = true
-versionRange = "[48,)"
+versionRange = "[20.2,)"
 ordering = "NONE"
 side = "BOTH"
 

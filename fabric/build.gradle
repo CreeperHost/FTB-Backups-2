@@ -45,7 +45,7 @@ processResources {
 
 shadowJar {
     configurations = [project.configurations.shadowCommon]
-    classifier "dev-shadow"
+    archiveClassifier = "dev-shadow"
 
     dependencies {
         exclude(dependency("org.apache.logging::"))
@@ -70,11 +70,11 @@ remapJar {
     input.set shadowJar.archiveFile
     dependsOn shadowJar
     archiveBaseName.set "${rootProject.archives_base_name}-${project.name}-${rootProject.minecraft_version}"
-    classifier null
+    archiveClassifier = null
 }
 
 jar {
-    classifier "dev"
+    archiveClassifier = "dev"
 }
 
 sourcesJar {
