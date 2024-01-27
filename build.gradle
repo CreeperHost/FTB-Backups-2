@@ -33,6 +33,7 @@ allprojects {
     group = rootProject.maven_group
 
     repositories {
+        mavenLocal()
         maven {
             name "CreeperHost"
             url 'https://maven.creeperhost.net'

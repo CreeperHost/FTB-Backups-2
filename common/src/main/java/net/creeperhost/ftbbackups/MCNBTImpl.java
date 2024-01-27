@@ -61,7 +61,7 @@ public class MCNBTImpl implements NBTHandler {
 
     @Override
     public void write(ICompoundTag tag, Path path) throws IOException {
-        NbtIo.write((CompoundTag) tag.unwrap(), path.toFile());
+        NbtIo.write((CompoundTag) tag.unwrap(), path);
     }
 
     @Override
