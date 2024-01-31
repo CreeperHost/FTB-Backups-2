@@ -758,7 +758,7 @@ public class BackupHandler {
 
         long mins = duration.toMinutes();
         long seconds = duration.minusMinutes(mins).toSeconds();
-        long mili = duration.minusSeconds(seconds).toMillis();
+        long mili = duration.minusMinutes(mins).minusSeconds(seconds).toMillis();
 
         return mins + "m, " + seconds + "s, " + mili + "ms";
     }
