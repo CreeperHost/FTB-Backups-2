@@ -479,6 +479,19 @@ public class BackupHandler {
         if (backupsNeedRemoving <= 0 || getOldestBackup() == null) return;
 
         for (int i = 0; i < backupsNeedRemoving; i++) {
+            Backup incomplete = backups.get()
+                    .getBackups()
+                    .stream()
+                    .filter(e -> !e.isComplete())
+                    .findAny()
+                    .orElse(null);
+
+            //Prioritize deleting incomplete backups first
+            if (incomplete != null) {
+                deleteBackup(incomplete);
+                continue;
+            }
+
             Backup oldest = getOldestBackup();
             deleteBackup(oldest);
         }
@@ -501,8 +514,15 @@ public class BackupHandler {
 
         //Keep the latest x backups
         if (Config.cached().keep_latest > 0) {
-            for (Backup backup : backups.subList(0, Config.cached().keep_latest)) {
-                backupsToKeep.put(backup, "Latest");
+            int kept = 0;
+            for (Backup backup : backups) {
+                if (backup.isComplete()) {
+                    backupsToKeep.put(backup, "Latest");
+                    kept++;
+                }
+                if (kept >= Config.cached().keep_latest) {
+                    break;
+                }
             }
         }
 
