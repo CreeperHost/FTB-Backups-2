@@ -91,6 +91,10 @@ public class Backup {
         return this;
     }
 
+    public boolean isComplete() {
+        return complete;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
