@@ -39,4 +39,4 @@ jobs:
           echo "Tag name from GITHUB_REF_NAME: $GITHUB_REF_NAME"
           echo "Tag name from github.ref_name: ${{ github.ref_name}}"
           chmod +x ./gradlew
-#          ./gradlew build publish publishUnified --stacktrace --no-daemon
+          ./gradlew build publish publishUnified --stacktrace --no-daemon
