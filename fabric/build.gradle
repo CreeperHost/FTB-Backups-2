@@ -116,7 +116,7 @@ publishing {
 
 unifiedPublishing {
     project {
-        displayName = "$rootProject.minecraft_version-.${ENV.GITHUB_REF} [Fabric]"
+        displayName = "$rootProject.minecraft_version-.${ENV.GITHUB_REF_NAME} [Fabric]"
         releaseType = "$rootProject.artifact_type"
         changelog = ""
         gameVersions = [rootProject.minecraft_version]
