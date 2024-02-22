@@ -2,7 +2,7 @@ name: Java CI
 
 on:
   push:
-    tags: [ '*.*.*' ]
+    tags: [ '\d+\.\d+\.\d+\-?\w*' ]
   workflow_dispatch:
     inputs:
       norelease:
@@ -37,4 +37,4 @@ jobs:
           CURSE_API_KEY: ${{ secrets.CURSE_API_KEY }}
         run: |
           chmod +x ./gradlew
-          ./gradlew build publish publishUnified --stacktrace --no-daemon
+          ./gradlew build
