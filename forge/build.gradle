@@ -121,7 +121,7 @@ publishing {
 
 unifiedPublishing {
     project {
-        displayName = "$rootProject.minecraft_version-.${ENV.GITHUB_REF_NAME} [Forge]"
+        displayName = "${ENV.GITHUB_REF_NAME} [Forge]"
         releaseType = "$rootProject.artifact_type"
         changelog = ""
         gameVersions = [rootProject.minecraft_version]
