@@ -221,7 +221,7 @@ public class BackupHandler {
                 AtomicLong finishTime = new AtomicLong();
 
                 //Add the backup entry first so in the event the backup is interrupted we are not left with an orphaned partial backup that will never get cleared automatically.
-                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), lastAutoBackup, backupLocation.toString(), 0, 0, "", backupPreview.get(), protect, name, format, false);
+                Backup backup = new Backup(worldFolder.normalize().getFileName().toString(), lastAutoBackup, backupLocation.toString(), 0, 1, "", backupPreview.get(), protect, name, format, false);
                 addBackup(backup);
                 updateJson();
 
@@ -429,6 +429,7 @@ public class BackupHandler {
         if (backups.get().isEmpty()) return null;
         Backup currentNewest = null;
         for (Backup backup : backups.get().getBackups()) {
+            if (!backup.isComplete()) continue;
             if (currentNewest == null) currentNewest = backup;
             if (backup.getCreateTime() > currentNewest.getCreateTime()) {
                 currentNewest = backup;
@@ -684,7 +685,7 @@ public class BackupHandler {
         }
 
         long minFreeSpace = Config.cached().minimum_free_space * 1000000L;
-        long free = backupFolderPath.toFile().getFreeSpace() - minFreeSpace;
+        long free = backupFolderPath.toFile().getUsableSpace() - minFreeSpace;
         long currentWorldSize = FileUtils.getFolderSize(worldFile);
         for (String p : Config.cached().additional_directories) {
             try {
