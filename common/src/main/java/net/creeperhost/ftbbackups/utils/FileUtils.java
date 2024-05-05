@@ -89,7 +89,9 @@ public class FileUtils {
         updateZipEntry(zipEntry, file);
         try {
             Files.copy(file, zos);
-        } catch (Exception ignored) { }
+        } catch (Exception e) {
+            FTBBackups.LOGGER.error("Failed to add file to zip: {}", file, e);
+        }
         zos.closeEntry();
     }
 
