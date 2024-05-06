@@ -80,18 +80,14 @@ public class FileUtils {
         // Don't pack session.lock files
         if (file.getFileName().toString().equals("session.lock")) return;
         // Don't try and copy a file that does not exist
-        if (!file.toFile().exists()) return;
+        if (!Files.exists(file)) return;
         // Ensure files are readable
         if (!Files.isReadable(file)) return;
 
         ZipEntry zipEntry = new ZipEntry(rootDir.relativize(file).toString());
         zos.putNextEntry(zipEntry);
         updateZipEntry(zipEntry, file);
-        try {
-            Files.copy(file, zos);
-        } catch (Exception e) {
-            FTBBackups.LOGGER.error("Failed to add file to zip: {}", file, e);
-        }
+        Files.copy(file, zos);
         zos.closeEntry();
     }
 
