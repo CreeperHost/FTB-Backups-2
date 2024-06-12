@@ -7,6 +7,8 @@ dependencies {
     implementation "blue.endless:jankson:1.2.1"
     implementation "net.covers1624:Quack:0.4.6.69"
     implementation 'org.quartz-scheduler:quartz:2.0.2'
+    implementation "io.airlift:aircompressor:0.27"
+    implementation "org.kamranzafar:jtar:2.3"
     implementation "net.creeperhost:LevelPreview:${rootProject.preview_version}"
     implementation "net.creeperhost:LevelIO:${rootProject.levelio_version}"
 }

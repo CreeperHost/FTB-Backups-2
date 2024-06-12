@@ -73,7 +73,7 @@ public class ConfigData {
     @Comment("backup location")
     public String backup_location = ".";
 
-    @Comment("Specify the backup format. Valid options are ZIP and DIRECTORY")
+    @Comment("Specify the backup format. Valid options are ZIP, ZSTD and DIRECTORY")
     public Format backup_format = Format.ZIP;
 
     @Comment("Minimum free disk space in MB. If a backup's creation would leave less than this amount of disk space remaining, the backup will be aborted.")
