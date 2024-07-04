@@ -17,27 +17,27 @@ Backup all the things!
 [[dependencies.ftbbackups2]]
 modId = "neoforge"
 type="required"
-versionRange = "[20,)"
+versionRange = "[21,)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.ftbbackups2]]
 modId = "minecraft"
 type="required"
-versionRange = "[1.20.4,)"
+versionRange = "[1.21,)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.ftbbackups2]]
 modId = "architectury"
 type="required"
-versionRange = "[11.0.9,)"
+versionRange = "[13.0.1,)"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.ftbbackups2]]
 modId = "polylib"
 type="required"
-versionRange = "[2004.0.3,)"
+versionRange = "[2100.0.3,)"
 ordering = "AFTER"
 side = "BOTH"

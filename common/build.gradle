@@ -1,5 +1,5 @@
 plugins {
-    id "com.github.johnrengelman.shadow" version "7.0.0"
+    id "com.github.johnrengelman.shadow" version "8.1.1"
     id "maven-publish"
 }
 
@@ -18,7 +18,7 @@ dependencies {
     implementation 'org.quartz-scheduler:quartz:2.0.2'
     implementation "net.creeperhost:LevelPreview:${rootProject.preview_version}"
     implementation "net.creeperhost:LevelIO:${rootProject.levelio_version}"
-    modApi "net.creeperhost:polylib-fabric:${rootProject.polylib_version}"
+    modApi("net.creeperhost:polylib-fabric:${rootProject.polylib_version}") { transitive false }
 }
 
 architectury {

@@ -68,7 +68,7 @@ public class BackupHandler {
     public static Path defaultBackupLocation;
 
     public static void init(MinecraftServer minecraftServer) {
-        serverRoot = minecraftServer.getServerDirectory().toPath().normalize().toAbsolutePath();
+        serverRoot = minecraftServer.getServerDirectory().normalize().toAbsolutePath();
         defaultBackupLocation = serverRoot.resolve("backups");
 
         if (!Config.cached().backup_location.equalsIgnoreCase(".")) {
@@ -114,7 +114,7 @@ public class BackupHandler {
                 FTBBackups.LOGGER.info("Skipping backup preview because preview is disabled.");
                 return "";
             }
-            
+
             long scanStart = System.currentTimeMillis();
             Path worldPath = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
             PREVIEW.loadWorld(worldPath);
