@@ -43,6 +43,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -234,7 +235,7 @@ public class BackupHandler {
                         //Ensure that save operation we just scheduled has completed before we continue.
                         if (!saveOp.isDone()) {
                             FTBBackups.LOGGER.info("Waiting for world save to complete.");
-                            saveOp.get(30, TimeUnit.SECONDS);
+                            saveOp.get(60, TimeUnit.SECONDS);
                         }
 
                         //Warn all online players that the server is going to start creating a backup
@@ -327,7 +328,12 @@ public class BackupHandler {
                         //Set alerts to all players on the server
                         alertPlayers(minecraftServer, new TranslatableComponent(FTBBackups.MOD_ID + ".backup.failed"));
                         //Log and print stacktraces
-                        FTBBackups.LOGGER.error("Failed to create backup", e);
+                        if (e instanceof TimeoutException) {
+                            //Dont print stack trace, Just so people stop pointing the finger at us when the world decides to lock up on save.
+                            FTBBackups.LOGGER.warn("Failed to create backup, World took to long to save.");
+                        } else {
+                            FTBBackups.LOGGER.error("Failed to create backup", e);
+                        }
                         if (e instanceof FileAlreadyExistsException) {
                             TieredBackupTest.testBackupCount++;
                         }
