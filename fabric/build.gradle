@@ -33,7 +33,9 @@ dependencies {
 
     shadowLib "blue.endless:jankson:1.2.1"
     shadowLib "org.quartz-scheduler:quartz:2.0.2"
-    shadowLib ("net.covers1624:Quack:0.4.6.69")
+    shadowLib "net.covers1624:Quack:0.4.6.69"
+    shadowLib "io.airlift:aircompressor:0.27"
+    shadowLib "org.kamranzafar:jtar:2.3"
     shadowLib ("net.creeperhost:LevelPreview:${rootProject.preview_version}") { transitive = false }
     shadowLib ("net.creeperhost:LevelIO:${rootProject.levelio_version}") { transitive = false }
 }
@@ -60,7 +62,9 @@ shadowJar {
             'net/covers1624',
             'blue/endless',
             'de/piegames',
-            'org/quartz'
+            'org/quartz',
+            'io/airlift',
+            'org/kamranzafar'
     ]
 
     repackPackages.each {

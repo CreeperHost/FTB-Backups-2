@@ -115,7 +115,7 @@ public class BackupHandler {
                 FTBBackups.LOGGER.info("Skipping backup preview because preview is disabled.");
                 return "";
             }
-            
+
             long scanStart = System.currentTimeMillis();
             Path worldPath = minecraftServer.getWorldPath(LevelResource.ROOT).toAbsolutePath();
             PREVIEW.loadWorld(worldPath);
@@ -240,7 +240,7 @@ public class BackupHandler {
                         alertPlayers(minecraftServer, Component.translatable(FTBBackups.MOD_ID + ".backup.starting"));
                         //Create the full path to this backup
                         Path backupPath = backupFolderPath.resolve(backupName);
-                        //Create a zip of the world folder and store it in the /backup folder
+                        //Create a backup of the world folder and store it in the /backup folder
                         List<Path> backupPaths = new LinkedList<>();
                         backupPaths.add(worldFolder);
 
@@ -310,10 +310,10 @@ public class BackupHandler {
                             }
                         }
                         backupPreview.set(createPreview(minecraftServer));
-                        if (format == Format.ZIP) {
-                            FileUtils.zip(backupPath, serverRoot, backupPaths);
-                        } else {
+                        if (format == Format.DIRECTORY) {
                             FileUtils.copy(backupPath, serverRoot, backupPaths);
+                        } else {
+                            FileUtils.compress(backupPath, serverRoot, backupPaths, format);
                         }
                         //The backup did not fail
                         backupFailed.set(false);
@@ -360,8 +360,8 @@ public class BackupHandler {
                     String sha1;
                     float ratio = 1;
                     long backupSize = FileUtils.getSize(backupLocation.toFile());
-                    if (format == Format.ZIP) {
-                        //Get the sha1 of the new backup .zip to store to the json file
+                    if (format != Format.DIRECTORY) {
+                        //Get the sha1 of the new backup .zip/.tar.zst to store to the json file
                         sha1 = FileUtils.getFileSha1(backupLocation);
                         //Do some math to figure out the ratio of compression
                         ratio = (float) backupSize / (float) FileUtils.getFolderSize(worldFolder.toFile());
@@ -404,8 +404,9 @@ public class BackupHandler {
         String date = calendar.get(Calendar.YEAR) + "-" + (calendar.get(Calendar.MONTH) + 1) + "-" + calendar.get(Calendar.DATE);
         String time = calendar.get(Calendar.HOUR_OF_DAY) + "-" + calendar.get(Calendar.MINUTE) + "-" + calendar.get(Calendar.SECOND);
         String backupName = date + "_" + time;
-        if (Config.cached().backup_format == Format.ZIP) {
-            backupName += ".zip";
+        switch (Config.cached().backup_format) {
+            case ZIP -> backupName += ".zip";
+            case ZSTD -> backupName += ".tar.zst";
         }
         return backupName;
     }
@@ -743,7 +744,7 @@ public class BackupHandler {
                 FTBBackups.LOGGER.info("File missing, removing from backups " + backup.getBackupLocation());
             }
         }
-        if (update){
+        if (update) {
             updateJson();
         }
     }
