@@ -5,5 +5,6 @@ package net.creeperhost.ftbbackups.config;
  */
 public enum Format {
     ZIP,
+    ZSTD,
     DIRECTORY
 }
