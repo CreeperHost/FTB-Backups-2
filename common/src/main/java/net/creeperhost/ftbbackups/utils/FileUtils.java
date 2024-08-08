@@ -3,11 +3,16 @@ package net.creeperhost.ftbbackups.utils;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
+import io.airlift.compress.zstd.ZstdOutputStream;
 import net.creeperhost.ftbbackups.FTBBackups;
 import net.creeperhost.ftbbackups.config.Config;
+import net.creeperhost.ftbbackups.config.Format;
+import org.kamranzafar.jtar.TarEntry;
+import org.kamranzafar.jtar.TarOutputStream;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -54,21 +59,31 @@ public class FileUtils {
         }
     }
 
-    public static void zip(Path zipFilePath, Path serverRoot, Iterable<Path> sourcePaths) throws IOException {
+    public static void compress(Path zipFilePath, Path serverRoot, Iterable<Path> sourcePaths, Format format) throws IOException {
         Path p = Files.createFile(zipFilePath);
-        try (ZipOutputStream zs = new ZipOutputStream(Files.newOutputStream(p))) {
+        try (OutputStream f = Files.newOutputStream(p);
+             ZipOutputStream zipOut = format == Format.ZIP ? new ZipOutputStream(f) : null;
+             TarOutputStream zstdOut = format == Format.ZSTD ? new TarOutputStream(new ZstdOutputStream(f)) : null) {
             for (Path sourcePath : sourcePaths) {
                 if (!Files.isDirectory(sourcePath)) {
                     Path relFile = serverRoot.relativize(sourcePath);
                     if (matchesAny(relFile, Config.cached().excluded)) continue;
-                    packIntoZip(zs, serverRoot, sourcePath);
+                    if (format == Format.ZIP) {
+                        packIntoZip(zipOut, serverRoot, sourcePath);
+                    } else {
+                        packIntoTar(zstdOut, serverRoot, sourcePath);
+                    }
                 } else {
                     try (Stream<Path> pathStream = Files.walk(sourcePath)) {
                         for (Path path : (Iterable<Path>) pathStream::iterator) {
                             if (Files.isDirectory(path)) continue;
                             Path relFile = serverRoot.relativize(path);
                             if (matchesAny(relFile, Config.cached().excluded)) continue;
-                            packIntoZip(zs, serverRoot, path);
+                            if (format == Format.ZIP) {
+                                packIntoZip(zipOut, serverRoot, path);
+                            } else {
+                                packIntoTar(zstdOut, serverRoot, path);
+                            }
                         }
                     }
                 }
@@ -76,13 +91,19 @@ public class FileUtils {
         }
     }
 
-    private static void packIntoZip(ZipOutputStream zos, Path rootDir, Path file) throws IOException {
+    private static boolean shouldSkipPacking(Path file) {
         // Don't pack session.lock files
-        if (file.getFileName().toString().equals("session.lock")) return;
+        if (file.getFileName().toString().equals("session.lock")) return true;
         // Don't try and copy a file that does not exist
-        if (!Files.exists(file)) return;
+        if (!Files.exists(file)) return true;
         // Ensure files are readable
-        if (!Files.isReadable(file)) return;
+        if (!Files.isReadable(file)) return true;
+
+        return false;
+    }
+
+    private static void packIntoZip(ZipOutputStream zos, Path rootDir, Path file) throws IOException {
+        if (shouldSkipPacking(file)) return;
 
         ZipEntry zipEntry = new ZipEntry(rootDir.relativize(file).toString());
         zos.putNextEntry(zipEntry);
@@ -96,6 +117,27 @@ public class FileUtils {
             BasicFileAttributes basicFileAttributes = Files.readAttributes(path, BasicFileAttributes.class);
             zipEntry.setLastModifiedTime(basicFileAttributes.lastModifiedTime());
             zipEntry.setCreationTime(basicFileAttributes.creationTime());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void packIntoTar(TarOutputStream taos, Path rootDir, Path file) throws IOException {
+        if (shouldSkipPacking(file)) return;
+
+        TarEntry tarEntry = new TarEntry(file.toFile(), rootDir.relativize(file).toString());
+        taos.putNextEntry(tarEntry);
+        updateTarEntry(tarEntry, file);
+        try {
+            Files.copy(file, taos);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static void updateTarEntry(TarEntry tarEntry, Path path) {
+        try {
+            BasicFileAttributes basicFileAttributes = Files.readAttributes(path, BasicFileAttributes.class);
+            tarEntry.setModTime(basicFileAttributes.lastModifiedTime().toMillis());
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -175,8 +217,7 @@ public class FileUtils {
                     size += Files.size(path);
                 }
             }
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             FTBBackups.LOGGER.warn("Error occurred while calculating file size", e);
         }
 
