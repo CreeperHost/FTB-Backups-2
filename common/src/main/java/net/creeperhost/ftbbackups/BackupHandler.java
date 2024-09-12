@@ -17,6 +17,7 @@ import net.creeperhost.levelpreview.ColourMap;
 import net.creeperhost.levelpreview.LevelPreview;
 import net.creeperhost.levelpreview.lib.CaptureArea;
 import net.creeperhost.levelpreview.lib.SimplePNG;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
