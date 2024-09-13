@@ -34,10 +34,3 @@ type="required"
 versionRange = "[11.0.9,)"
 ordering = "AFTER"
 side = "BOTH"
-
-[[dependencies.ftbbackups2]]
-modId = "polylib"
-type="required"
-versionRange = "[2004.0.3,)"
-ordering = "AFTER"
-side = "BOTH"

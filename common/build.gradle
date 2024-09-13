@@ -20,7 +20,6 @@ dependencies {
     implementation "org.kamranzafar:jtar:2.3"
     implementation "net.creeperhost:LevelPreview:${rootProject.preview_version}"
     implementation "net.creeperhost:LevelIO:${rootProject.levelio_version}"
-    modApi "net.creeperhost:polylib-fabric:${rootProject.polylib_version}"
 }
 
 architectury {
