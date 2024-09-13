@@ -34,10 +34,3 @@ mandatory = true
 versionRange = "[6.2.43,)"
 ordering = "AFTER"
 side = "BOTH"
-
-[[dependencies.ftbbackups2]]
-modId = "polylib"
-mandatory = true
-versionRange = "[1900.0.2,)"
-ordering = "AFTER"
-side = "BOTH"
