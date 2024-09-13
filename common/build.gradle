@@ -3,7 +3,7 @@ dependencies {
     // Do NOT use other classes from fabric loader
     modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
     // Remove the next line if you don't want to depend on the API
-    modApi "dev.architectury:architectury:${rootProject.architectury_version}"
+    modApi "dev.architectury:architectury-fabric:${rootProject.architectury_version}"
     implementation "blue.endless:jankson:1.2.1"
     implementation "net.covers1624:Quack:0.4.6.69"
     implementation 'org.quartz-scheduler:quartz:2.0.2'
@@ -11,7 +11,6 @@ dependencies {
     implementation "org.kamranzafar:jtar:2.3"
     implementation "net.creeperhost:LevelPreview:${rootProject.preview_version}"
     implementation "net.creeperhost:LevelIO:${rootProject.levelio_version}"
-    modApi "net.creeperhost:polylib-fabric:${rootProject.polylib_version}"
 }
 
 architectury {
