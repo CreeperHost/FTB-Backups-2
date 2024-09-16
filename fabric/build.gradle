@@ -10,6 +10,18 @@ architectury {
     fabric()
 }
 
+loom {
+    runs {
+        clientLogin {
+            client()
+            ideConfigGenerated true
+            mainClass.set 'net.covers1624.devlogin.DevLogin'
+
+            programArgs '--launch_target', 'net.fabricmc.loader.impl.launch.knot.KnotClient'
+        }
+    }
+}
+
 configurations {
     common
     shadowLib

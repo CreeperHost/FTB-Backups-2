@@ -5,6 +5,18 @@ plugins {
 
 def ENV = System.getenv()
 
+loom {
+    runs {
+        clientLogin {
+            client()
+            ideConfigGenerated true
+            mainClass.set 'net.covers1624.devlogin.DevLogin'
+
+            programArgs '--launch_target', 'cpw.mods.bootstraplauncher.BootstrapLauncher'
+        }
+    }
+}
+
 architectury {
     platformSetupLoomIde()
     neoForge {
@@ -19,7 +31,7 @@ configurations {
     shadowCommon.extendsFrom shadowLib
     compileClasspath.extendsFrom common
     runtimeClasspath.extendsFrom common
-    developmentForge.extendsFrom common
+    developmentNeoForge.extendsFrom common
     implementation.extendsFrom shadowLib
     forgeRuntimeLibrary.extendsFrom shadowLib
 }
