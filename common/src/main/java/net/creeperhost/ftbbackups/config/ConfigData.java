@@ -64,13 +64,15 @@ public class ConfigData {
             folder/                         Everything in this folder
             path/starts/with*               Any files who's path starts with
             *path/ends/with.txt             Any files who's path ends with
-            *path/contains*                 Any files who's path contains""")
+            *path/contains*                 Any files who's path contains
+            Note: You can now specify the entire minecraft server directory, but if you do this, you must change "backup_location" to a location
+            outside the server directory to avoid backing up previous backups.""")
     public List<String> additional_files = new ArrayList<>();
 
     @Comment("Display file size in backup message")
     public boolean display_file_size = false;
 
-    @Comment("backup location")
+    @Comment("backup location, The default \".\" creates a folder called \"backups\" inside the server directory.")
     public String backup_location = ".";
 
     @Comment("Specify the backup format. Valid options are ZIP, ZSTD and DIRECTORY")
