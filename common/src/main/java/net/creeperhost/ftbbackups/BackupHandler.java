@@ -305,6 +305,9 @@ public class BackupHandler {
 
                                 if (Files.exists(path)) {
                                     backupPaths.add(path);
+                                    if (FileUtils.isChildOf(worldFolder, path)) {
+                                        backupPaths.remove(worldFolder);
+                                    }
                                 }
                             } catch (Exception err) {
                                 FTBBackups.LOGGER.error("Failed to add additional directory '{}' to the backup.", p, err);
