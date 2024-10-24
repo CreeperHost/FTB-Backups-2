@@ -352,14 +352,6 @@ public class BackupHandler {
                         return;
                     }
 
-                    finishTime.set(System.nanoTime());
-                    //Workout the time it took to create the backup
-                    long elapsedTime = finishTime.get() - startTime.get();
-                    //Set backup running state to false
-                    backupRunning.set(false);
-                    //Alert players that backup has finished being created
-                    alertPlayers(minecraftServer, Component.translatable("Backup finished in " + format(elapsedTime) + (Config.cached().display_file_size ? " Size: " + FileUtils.getSizeString(backupLocation.toFile().length()) : "")));
-
                     String sha1;
                     float ratio = 1;
                     long backupSize = FileUtils.getSize(backupLocation.toFile());
@@ -378,6 +370,14 @@ public class BackupHandler {
                     backup.setSize(backupSize);
 
                     updateJson();
+
+                    finishTime.set(System.nanoTime());
+                    //Workout the time it took to create the backup
+                    long elapsedTime = finishTime.get() - startTime.get();
+                    //Set backup running state to false
+                    backupRunning.set(false);
+                    //Alert players that backup has finished being created
+                    alertPlayers(minecraftServer, Component.translatable("Backup finished in " + format(elapsedTime) + (Config.cached().display_file_size ? " Size: " + FileUtils.getSizeString(backupLocation.toFile().length()) : "")));
                     FTBBackups.LOGGER.info("New backup created at " + backupLocation + " size: " + FileUtils.getSizeString(backupLocation) + " Took: " + format(elapsedTime) + " Sha1: " + sha1);
 
                     TieredBackupTest.testBackupCount++;
